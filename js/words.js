@@ -2,13 +2,13 @@
 // Lista de respostas (palavras que podem ser sorteadas) e dicionário de validação
 
 const ANSWERS = [
-  "CASA", "MESA", "GATO", "TERRA", "LIVRO", "PEDRA", "FORTE", "BRACO", "CACHO", "MARTE",
-  "NOITE", "DIADE", "SOLAR", "LUADE", "MUNDO", "CHUVA", "VENTO", "FOGO", "AGUA", "FLOR",
-  "ARVOR", "FRUTA", "CARRO", "NAVIO", "AVIAO", "PORTA", "JANEL", "CAMA", "SOFA", "MESA",
-  "PAPEL", "CANET", "LAPIS", "RELOG", "CHAVE", "CADEI", "BANCO", "PRATO", "COPO", "FACA",
-  "TIGRE", "LEAO", "URSO", "LOBO", "RATO", "PEIXE", "PASSA", "CORVO", "CAMELO", "ZEBRA",
-  "VERDE", "AZUL", "PRETO", "BRANCO", "CINZA", "AMARE", "ROXO", "ROSA", "BEGE", "MARRO",
-  "FELIZ", "TRIST", "FORTE", "FRACO", "RAPID", "LENTO", "GRAND", "PEQUE", "NOVO", "VELHO"
+  "CASAS", "MESAS", "GATOS", "TERRA", "LIVRO", "PEDRA", "FORTE", "BRACO", "CACHO", "MARTE",
+  "NOITE", "DIETA", "SOLAR", "LUNAR", "MUNDO", "CHUVA", "VENTO", "FOGOS", "AGUAS", "FLORA",
+  "FOLHA", "FRUTA", "CARRO", "NAVIO", "AVIAO", "PORTA", "JANTA", "CAMAS", "SOFAS",
+  "PAPEL", "CANAL", "LAPIS", "REGRA", "CHAVE", "CAIXA", "BANCO", "PRATO", "COPOS", "FACAS",
+  "TIGRE", "LEOES", "URSOS", "LOBOS", "RATOS", "PEIXE", "PASSA", "CORVO", "CAMPO", "ZEBRA",
+  "VERDE", "AZUIS", "PRETO", "CLARO", "CINZA", "OCRES", "ROXOS", "ROSAS", "AREIA",
+  "FELIZ", "TENSO", "FORTE", "FRACO", "VELOZ", "LENTO", "MAIOR", "MENOR", "NOVOS", "VELHO"
 ];
 
 // Dicionário de validação (respostas + palavras válidas para chutes)
@@ -37,7 +37,7 @@ const VALID_GUESSES = [
   "URGEN", "USUAL", "VAGAR", "VALID", "VARIA", "VASTO", "VELA", "VENDO", "VERAO", "VERSO",
   "VESTE", "VIAJAR", "VIGIA", "VINTE", "VIRAL", "VISIT", "VITAL", "VIVER", "VOLTA", "VONTA",
   "VOTAR", "ZELAR"
-].map(w => w.length === 5 ? w : w.padEnd(5, 'A').substring(0,5));
+].filter(w => w.length === 5);
 
 function normalizeWord(word) {
   return word.toUpperCase()

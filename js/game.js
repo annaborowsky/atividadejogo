@@ -320,7 +320,7 @@ class Game {
       for (let i = 0; i < 5; i++) {
         if (prevFeedback[i] === 'present') {
           const letter = prevGuess[i];
-          if (!guess.includes(letter)) {
+          if (!guess.includes(letter) || guess[i] === letter) {
             return false;
           }
         }
