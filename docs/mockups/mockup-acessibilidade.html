@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<!-- Não bloqueia zoom (WCAG 1.4.4): viewport permite zoom de 200%+ sem perda de conteúdo. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Protótipo 2 do jogo Caça-palavras — focado em acessibilidade WCAG 2.1 nível AA.">
+<title>Caça-palavras — Protótipo 2: Acessibilidade (WCAG 2.1 AA)</title>
+
+<!--
+  ============================================================================
+  PROTÓTIPO 2 — ACESSIBILIDADE (WCAG 2.1 AA) — DECISÕES PRINCIPAIS
+  ============================================================================
+  Este arquivo é autocontido (HTML + CSS + JS embutidos), sem dependências
+  externas, funciona offline e é totalmente jogável.
+
+  1. NÃO DEPENDER DE COR (SC 1.4.1)
+     Cada estado do tabuleiro/triadura tem TRÊS codificações simultâneas:
+       a) cor (verde/amarelo/cinza) — reforço, nunca o único canal;
+       b) símbolo dentro da célula: ✓ (posição correta), ~ (letra existe,
+          posição errada), ✕ (letra não existe);
+       c) estilo de borda: sólida (verde), tracejada (amarela), pontilhada
+          (cinza) + textura de fundo (listras diagonais na amarela, pontos
+          na cinza).
+     O teclado virtual recebe os mesmos símbolos (✓ / ~ / ✕) e rótulos ARIA
+     atualizados ("Letra A, posição correta").
+
+  2. CONTRASTE VERIFICADO (SC 1.4.3 / 1.4.11) — valores calculados (WCAG):
+     - Texto principal #1A1A1A sobre fundo #FFFFFF ........... 17,4:1 (AAA)
+     - Texto secundário #4A4A4A sobre #FFFFFF ................  8,9:1 (AAA)
+     - Texto branco sobre verde #15803D ......................  5,0:1 (AA)
+     - Texto branco sobre amarelo escuro #A16207 .............  4,9:1 (AA)
+       (O amarelo tipo Wordle #C9B458 dá só ~2,1:1 com branco; escurecemos
+       para #A16207 para atingir 4,9:1 mantendo a leitura de "amarelo".)
+     - Texto branco sobre cinza #3F3F46 ...................... 10,4:1 (AAA)
+     - Anel de foco #1D4ED8 sobre #FFFFFF ....................  6,7:1 (≥3:1)
+     - Superfície dos cards #F4F4F5 com borda #71717A ......... ≥4,6:1 (borda
+       de componente gráfico ≥3:1 contra fundo adjacente)
+     MODO ALTO CONTRASTE (toggle):
+     - Branco #FFFFFF sobre preto #000000 .................... 21:1 (AAA)
+     - Preto sobre verde vivo #00E676 ........................ 12,6:1
+     - Preto sobre amarelo vivo #FFD600 ...................... 14,9:1
+     - Preto sobre cinza #9E9E9E ..............................  7,8:1
+     - Anel de foco amarelo #FFFF00 sobre preto .............. 19,6:1
+
+  3. TECLADO (SC 2.1.1 / 2.4.3 / 2.4.7)
+     - Tabulação em ordem visual lógica: modo → preferências → dica →
+       tabuleiro → teclado virtual.
+     - Enter confirma, Backspace apaga, letras digitam, setas navegam:
+         · dentro do teclado virtual → navegação estilo grid (roving
+           tabindex + aria-activedescendant nas teclas);
+         · dentro do tabuleiro (role="grid") → move o cursor com
+           aria-activedescendant apontando para a célula ativa.
+     - Anel de foco: contorno 3px + deslocamento, contraste verificado;
+       nunca é escondido (usa :focus-visible e :focus no tabuleiro).
+
+  4. SEMÂNTICA E ARIA
+     - Tabuleiro: role="grid" > role="row" > role="gridcell", cada célula
+       com aria-label descritivo ("Linha 2, coluna 1, letra A, posição
+       correta").
+     - Regiões vivas: #status-vivo (role="status", polite) para o
+       resultado do turno ("Linha 2: A verde, posição correta; B cinza…")
+       e #alerta-vivo (role="alert", assertive) para erros ("Palavra não
+       encontrada", violações do modo difícil). Mensagens são VISÍVEIS e
+       ANUNCIADAS — nada é comunicado só por cor ou toast.
+     - Modal de estatísticas e modal de fim de jogo: role="dialog",
+       aria-modal, focus trap, Esc para fechar, foco restaurado ao botão
+       que abriu.
+     - Alternadores são <input type="checkbox"> reais com <label>; seletor
+       de modo é fieldset com radios (setas trocam a opção nativamente).
+
+  5. MOVIMENTO (SC 2.3.3)
+     - @media (prefers-reduced-motion: reduce) desliga flip/shake/pop.
+     - Botão/checkbox "Reduzir animações" força o mesmo comportamento e a
+       preferência é persistida.
+
+  6. ZOOM E REFLOW (SC 1.4.4 / 1.4.10)
+     - Tamanhos com clamp() em rem/vmin; layout em flex/grid responsivo;
+       sem tabela de largura fixa; sem scroll horizontal a 320px e com
+       zoom de 200%.
+
+  7. ESTRUTURA VISUAL: aviso de protótipo fixo (sticky), legenda de
+     significados independente de cor, instruções de uso textuais.
+  ============================================================================
+-->
+<style>
+/* ==========================================================================
+   1. VARIÁVEIS DE TEMA (contrastes comentados no cabeçalho do arquivo)
+   ========================================================================== */
+:root{
+  --bg:#FFFFFF;
+  --sup:#F4F4F5;            /* superfície de cards */
+  --sup-borda:#71717A;      /* borda de componente gráfico (≥3:1 vs #FFF = 4,6:1) */
+  --texto:#1A1A1A;          /* 17,4:1 sobre #FFF */
+  --texto-2:#4A4A4A;        /* 8,9:1 sobre #FFF */
+  --foco:#1D4ED8;           /* 6,7:1 sobre #FFF — anel de foco */
+  --foco-on-dark:#FFE600;   /* anel usado sobre fundos escuros/HC */
+
+  --verde:#15803D;          /* branco sobre este verde: 5,0:1 (AA)  */
+  --verde-borda:#0F5C2C;
+  --amarelo:#A16207;        /* branco sobre este amarelo: 4,9:1 (AA) */
+  --amarelo-borda:#7A4A05;
+  --cinza:#3F3F46;          /* branco sobre este cinza: 10,4:1 (AAA) */
+  --cinza-borda:#27272A;
+  --texto-cel:#FFFFFF;
+
+  --padrao-linha:rgba(0,0,0,.18);  /* textura das células amarelas */
+  --padrao-ponto:rgba(255,255,255,.22); /* textura das células cinzas */
+
+  --erro:#B42318;           /* 6,4:1 sobre branco */
+  --erro-fundo:#FEF3F2;
+  --ok-fundo:#ECFDF5;
+
+  --borda-cel:2px;
+  --cell:clamp(2.75rem, 12vmin, 3.75rem); /* reflow em zoom/estreito */
+  --raio:8px;
+}
+
+/* MODO ALTO CONTRASTE (toggle) — valores comentados no cabeçalho */
+[data-contraste="alto"]{
+  --bg:#000000;             /* branco sobre preto: 21:1 (AAA) */
+  --sup:#111111;
+  --sup-borda:#FFFFFF;
+  --texto:#FFFFFF;
+  --texto-2:#E4E4E7;
+  --foco:#FFFF00;           /* 19,6:1 sobre preto */
+  --verde:#00E676;          /* preto sobre este verde: 12,6:1 */
+  --verde-borda:#FFFFFF;
+  --amarelo:#FFD600;        /* preto sobre este amarelo: 14,9:1 */
+  --amarelo-borda:#FFFFFF;
+  --cinza:#9E9E9E;          /* preto sobre este cinza: 7,8:1 */
+  --cinza-borda:#FFFFFF;
+  --texto-cel:#000000;
+  --padrao-linha:rgba(0,0,0,.28);
+  --padrao-ponto:rgba(0,0,0,.35);
+  --erro:#FF6B6B;
+  --erro-fundo:#2A0605;
+  --ok-fundo:#052E16;
+  --borda-cel:3px;          /* bordas mais grossas no modo alto contraste */
+}
+
+/* ==========================================================================
+   2. RESET E BASE
+   ========================================================================== */
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--texto);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+h1,h2,h3{line-height:1.25;margin:0 0 .35em;}
+p{margin:.25em 0;}
+small{color:var(--texto-2);}
+
+/* Classe utilitária: conteúdo só para leitores de tela.
+   (Oculto visualmente, mas presente na árvore de acessibilidade.) */
+.sr{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+}
+
+/* Foco sempre visível e com contraste alto (SC 2.4.7 / 1.4.11) */
+:focus-visible{outline:3px solid var(--foco);outline-offset:2px;}
+[role="grid"]:focus{outline:3px solid var(--foco);outline-offset:4px;}
+.tecla:focus-visible{outline-offset:1px;}
+.modal :focus-visible{outline-color:var(--foco);outline-offset:2px;}
+
+/* ==========================================================================
+   3. LAYOUT
+   ========================================================================== */
+.pagina{
+  max-width:44rem;
+  margin:0 auto;
+  padding:0 .75rem 3rem;
+  display:flex;
+  flex-direction:column;
+  gap:.9rem;
+}
+
+/* Aviso de protótipo (sticky = não cobre conteúdo com zoom; sem position:
+   fixed para não esconder nada em telas estreitas). */
+.aviso-prototipo{
+  position:sticky;top:0;z-index:30;
+  margin:0;padding:.5rem .75rem;
+  background:var(--verde);color:#FFFFFF; /* 5,0:1 */
+  border-bottom:3px solid var(--verde-borda);
+  text-align:center;font-size:.9rem;
+}
+.aviso-prototipo strong{font-weight:800;}
+
+/* Cabeçalho */
+.cabecalho{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-top:1rem;}
+.cabecalho h1{font-size:clamp(1.35rem,4.5vw,1.8rem);margin:0;}
+.selo{font-size:.78rem;padding:.15rem .5rem;border:2px solid var(--sup-borda);
+  border-radius:999px;background:var(--sup);color:var(--texto);white-space:nowrap;}
+
+/* Cartões de configuração */
+.cartao{
+  background:var(--sup);border:2px solid var(--sup-borda);
+  border-radius:var(--raio);padding:.7rem .85rem;
+  display:flex;flex-wrap:wrap;gap:.6rem 1.1rem;align-items:center;
+}
+.cartao legend{font-weight:700;padding:0 .25rem;}
+fieldset.cartao{border:2px solid var(--sup-borda);min-width:0;}
+
+/* Seletor de modo (radios segmentados, mas continuam sendo radios nativos) */
+.segmento{display:flex;gap:.4rem;flex-wrap:wrap;}
+.segmento .op{position:relative;}
+.segmento input{
+  position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;
+}
+.segmento span{
+  display:inline-block;padding:.45rem .9rem;border:2px solid var(--sup-borda);
+  border-radius:var(--raio);background:var(--bg);font-weight:600;cursor:pointer;
+}
+.segmento input:checked + span{
+  background:var(--verde);color:#FFFFFF;border-color:var(--verde-borda); /* 5,0:1 */
+}
+.segmento input:focus-visible + span{outline:3px solid var(--foco);outline-offset:2px;}
+
+/* Checkboxes reais com rotulagem explícita */
+.opcao{display:flex;align-items:flex-start;gap:.5rem;min-width:min(100%,13rem);}
+.opcao input[type="checkbox"]{
+  width:1.35rem;height:1.35rem;margin:.1rem 0 0;accent-color:var(--verde);flex:none;
+}
+.opcao label{font-weight:600;cursor:pointer;}
+.opcao .desc{display:block;font-weight:400;font-size:.82rem;color:var(--texto-2);}
+
+/* Botões genéricos */
+.botao{
+  font:inherit;font-weight:700;cursor:pointer;
+  padding:.55rem .95rem;border-radius:var(--raio);
+  border:2px solid var(--sup-borda);background:var(--bg);color:var(--texto);
+  display:inline-flex;align-items:center;gap:.45rem;
+}
+.botao:hover{background:var(--sup);}
+.botao-principal{background:var(--verde);color:#FFFFFF;border-color:var(--verde-borda);} /* 5,0:1 */
+.botao-principal:hover{background:var(--verde-borda);}
+.botao[disabled]{opacity:.55;cursor:not-allowed;}
+
+/* ==========================================================================
+   4. LEGENDA (significado dos estados SEM depender de cor)
+   ========================================================================== */
+.legenda{display:flex;flex-wrap:wrap;gap:.4rem .9rem;font-size:.88rem;margin:0;padding:0;list-style:none;}
+.legenda li{display:flex;align-items:center;gap:.4rem;}
+.simbolo{
+  display:inline-grid;place-items:center;min-width:1.6rem;height:1.6rem;
+  border-radius:4px;font-weight:800;font-size:.95rem;color:#FFFFFF;padding:0 .25rem;
+}
+.simbolo.ok{background:var(--verde);border:2px solid var(--verde-borda);}
+.simbolo.fora{background:var(--amarelo);border:2px dashed var(--amarelo-borda);}
+.simbolo.nao{background:var(--cinza);border:2px dotted var(--cinza-borda);}
+
+/* ==========================================================================
+   5. ÁREAS DE MENSAGEM (visíveis + anunciadas via live regions)
+   ========================================================================== */
+.mensagens{display:grid;}
+.mensagens > *{grid-area:1/1;}
+.mensagem{
+  margin:0;padding:.55rem .8rem;border-radius:var(--raio);font-weight:600;
+  border:2px solid var(--sup-borda);background:var(--sup);color:var(--texto);
+}
+.mensagem:empty{display:none;}
+.mensagem.erro{background:var(--erro-fundo);color:var(--erro);border-color:var(--erro);}
+.mensagem.sucesso{background:var(--ok-fundo);color:var(--verde);border-color:var(--verde);}
+
+/* ==========================================================================
+   6. TABULEIRO (grid semântico)
+   ========================================================================== */
+.tabuleiro{
+  display:grid;gap:.35rem;width:max-content;max-width:100%;margin:0 auto;
+  touch-action:manipulation;
+}
+.linha{display:grid;grid-template-columns:repeat(5,var(--cell));gap:.35rem;}
+.celula{
+  width:var(--cell);height:var(--cell);position:relative;
+  display:grid;place-items:center;
+  border:var(--borda-cel) solid var(--sup-borda);
+  border-radius:4px;background:var(--bg);color:var(--texto);
+  font-size:calc(var(--cell)*.5);font-weight:800;line-height:1;
+  user-select:none;
+}
+.celula.cursor{box-shadow:0 0 0 3px var(--foco) inset;}
+.celula .letra{transform:translateY(-2px);}
+/* Símbolo de estado (codificação NÃO cromática — SC 1.4.1) */
+.celula .sinal{
+  position:absolute;top:1px;right:3px;
+  font-size:calc(var(--cell)*.26);font-weight:900;line-height:1;
+  color:var(--texto-cel);
+}
+/* Estado: posição correta — verde + ✓ + borda SÓLIDA */
+.celula.ok{
+  background:var(--verde);border-color:var(--verde-borda);border-style:solid;
+  color:var(--texto-cel);
+}
+/* Estado: fora do lugar — amarelo escuro + ~ + borda TRACEJADA + listras */
+.celula.fora{
+  background:var(--amarelo);border-color:var(--amarelo-borda);border-style:dashed;
+  color:var(--texto-cel);
+  background-image:repeating-linear-gradient(45deg,var(--padrao-linha) 0 3px,transparent 3px 7px);
+}
+/* Estado: não existe — cinza + ✕ + borda PONTILHADA + textura de pontos */
+.celula.nao{
+  background:var(--cinza);border-color:var(--cinza-borda);border-style:dotted;
+  color:var(--texto-cel);
+  background-image:radial-gradient(var(--padrao-ponto) 1px,transparent 1.4px);
+  background-size:6px 6px;
+}
+/* Célula revelada pela dica (custa 1 tentativa) */
+.celula.dica::after{
+  content:"dica";position:absolute;bottom:1px;left:0;right:0;
+  font-size:calc(var(--cell)*.17);font-weight:700;text-align:center;
+  color:var(--texto-cel);letter-spacing:.02em;
+}
+/* Tentativa gasta pela dica (linha pulada) */
+.celula.gasta{
+  background:var(--sup);border-style:dashed;color:var(--texto-2);
+  font-size:calc(var(--cell)*.34);
+}
+.celula.gasta .sinal{color:var(--texto-2);}
+
+/* ==========================================================================
+   7. TECLADO VIRTUAL
+   ========================================================================== */
+.teclado{display:grid;gap:.4rem;width:100%;max-width:32rem;margin:0 auto;}
+.teclado-linha{display:flex;gap:.3rem;justify-content:center;}
+.tecla{
+  position:relative;flex:1 1 0;min-width:0;
+  font:inherit;font-weight:800;cursor:pointer;
+  padding:.65rem .1rem;border-radius:6px;
+  border:2px solid var(--sup-borda);background:var(--sup);color:var(--texto);
+  font-size:clamp(.95rem,3.6vw,1.15rem);
+}
+.tecla:hover{background:var(--sup-borda);color:var(--bg);}
+.tecla.acao{flex:1.6 1 0;font-size:clamp(.72rem,2.9vw,.92rem);}
+.tecla.ok{background:var(--verde);border-color:var(--verde-borda);border-style:solid;color:#FFFFFF;}
+.tecla.fora{background:var(--amarelo);border-color:var(--amarelo-borda);border-style:dashed;color:#FFFFFF;
+  background-image:repeating-linear-gradient(45deg,var(--padrao-linha) 0 3px,transparent 3px 7px);}
+.tecla.nao{background:var(--cinza);border-color:var(--cinza-borda);border-style:dotted;color:#FFFFFF;opacity:.9;}
+.tecla.ok:hover,.tecla.fora:hover,.tecla.nao:hover{filter:brightness(1.08);color:#FFFFFF;}
+/* Símbolos no teclado virtual (mesma codificação não cromática) */
+.tecla.ok::after,.tecla.fora::after,.tecla.nao::after{
+  position:absolute;top:0;right:3px;font-size:.7rem;font-weight:900;line-height:1;
+}
+.tecla.ok::after{content:"✓";}
+.tecla.fora::after{content:"~";}
+.tecla.nao::after{content:"✕";}
+
+/* ==========================================================================
+   8. MODAIS (focus trap + Esc + restauração de foco)
+   ========================================================================== */
+.fundo{
+  position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40;
+}
+[data-contraste="alto"] .fundo{background:rgba(255,255,255,.25);}
+.modal{
+  position:fixed;z-index:50;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(26rem,calc(100vw - 2rem));max-height:calc(100vh - 2rem);overflow:auto;
+  background:var(--bg);color:var(--texto);
+  border:3px solid var(--texto);border-radius:12px;padding:1rem 1.1rem;
+  display:grid;gap:.7rem;
+}
+.modal .fechar{justify-self:end;}
+.grade-stats{display:grid;gap:.5rem;margin:0;padding:0;list-style:none;}
+.grade-stats .valor{font-weight:800;}
+.distribuicao{display:grid;gap:.3rem;margin:0;padding:0;list-style:none;}
+.distribuicao li{display:grid;grid-template-columns:1.5rem 1fr 2.5rem;gap:.5rem;align-items:center;font-size:.9rem;}
+.barra-fundo{background:var(--sup);border:1px solid var(--sup-borda);border-radius:4px;height:1.15rem;overflow:hidden;}
+.barra{height:100%;width:var(--pct,0%);background:var(--verde);border-radius:3px 0 0 3px;}
+.distribuicao li.atual .barra-fundo{outline:2px solid var(--foco);outline-offset:1px;}
+.palavra-final{display:flex;gap:.35rem;justify-content:center;margin:.4rem 0;}
+.palavra-final span{
+  display:grid;place-items:center;width:2.6rem;height:2.6rem;
+  font-size:1.35rem;font-weight:800;border-radius:4px;color:#FFFFFF;
+  background:var(--verde);border:2px solid var(--verde-borda);
+}
+.acoes-modal{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;}
+
+/* ==========================================================================
+   9. MOVIMENTO — flip, shake e pop (desligáveis)
+   ========================================================================== */
+@keyframes flip{
+  0%{transform:rotateX(0);}
+  50%{transform:rotateX(90deg);}
+  100%{transform:rotateX(0);}
+}
+@keyframes shake{
+  0%,100%{transform:translateX(0);}
+  20%{transform:translateX(-6px);}
+  40%{transform:translateX(6px);}
+  60%{transform:translateX(-4px);}
+  80%{transform:translateX(4px);}
+}
+@keyframes pop{0%{transform:scale(1);}50%{transform:scale(1.12);}100%{transform:scale(1);}}
+.celula.virando{animation:flip .6s ease-in-out both;}
+.linha.shake{animation:shake .5s ease-in-out;}
+.celula.preenchida .letra{animation:pop .12s ease-out;}
+.linha{perspective:500px;}
+
+/* DESLIGA ANIMAÇÕES: pelo sistema (SC 2.3.3) ou pelo botão do usuário */
+@media (prefers-reduced-motion: reduce){
+  .celula.virando,.linha.shake,.celula.preenchida .letra{animation:none !important;}
+  *{transition:none !important;}
+}
+[data-movimento="reduzido"] .celula.virando,
+[data-movimento="reduzido"] .linha.shake,
+[data-movimento="reduzido"] .celula.preenchida .letra{animation:none !important;}
+[data-movimento="reduzido"] *{transition:none !important;}
+
+/* ==========================================================================
+   10. RESPONSIVO / REFLOW (SC 1.4.10 — 320px e zoom 200% sem scroll
+       horizontal e sem perda de conteúdo)
+   ========================================================================== */
+@media (max-width:30rem){
+  :root{--cell:clamp(2.5rem,15vw,3.2rem);gap:.5rem;}
+  .pagina{padding:0 .5rem 2rem;}
+  .cartao{gap:.5rem .75rem;}
+  .tecla{padding:.6rem .05rem;}
+  .opcao{min-width:100%;}
+}
+@media (max-width:22rem){
+  :root{--cell:clamp(2.25rem,16vw,2.8rem);}
+  .teclado-linha{gap:.2rem;}
+}
+</style>
+</head>
+
+<body>
+
+<!-- Aviso de protótipo (flutuante/sticky, visível e identificando a versão) -->
+<p class="aviso-prototipo" role="note">
+  <strong>Protótipo 2 — Acessibilidade (WCAG 2.1 AA)</strong><br>
+  Caça-palavras jogável: navegue por teclado, leia o tabuleiro por rótulos ARIA e use os toggles de acessibilidade abaixo.
+</p>
+
+<main class="pagina" id="principal">
+
+  <!-- ===================== CABEÇALHO ===================== -->
+  <header class="cabecalho">
+    <h1>Caça-palavras</h1>
+    <span class="selo">PT-BR · 5 letras · 6 tentativas</span>
+  </header>
+
+  <!-- Instruções textualmente explícitas (não só visuais) -->
+  <p id="instrucoes" style="margin:0;font-size:.92rem;color:var(--texto-2);">
+    Descubra a palavra em 6 tentativas. Digite letras, <kbd>Enter</kbd> confirma,
+    <kbd>Backspace</kbd> apaga. Com o tabuleiro ou o teclado virtual em foco, as
+    <kbd>setas</kbd> navegam. A <strong>Dica</strong> revela uma letra, mas custa 1 tentativa.
+  </p>
+
+  <!-- ===================== SELETOR DE MODO ===================== -->
+  <fieldset class="cartao">
+    <legend>Modo de jogo</legend>
+    <!-- Radios nativos: setas trocam a opção conforme esperado pelo teclado -->
+    <div class="segmento" role="group" aria-label="Modo de jogo">
+      <label class="op">
+        <input type="radio" name="modo" value="diario" id="rb-diario" checked>
+        <span>📅 Desafio diário</span>
+      </label>
+      <label class="op">
+        <input type="radio" name="modo" value="livre" id="rb-livre">
+        <span>🔁 Modo livre</span>
+      </label>
+    </div>
+    <p id="desc-modo" style="margin:.35rem 0 0;font-size:.85rem;color:var(--texto-2);">Uma palavra por dia, igual para todos. Reinicia à meia-noite.</p>
+  </fieldset>
+
+  <!-- ===================== PREFERÊNCIAS DE ACESSIBILIDADE ===================== -->
+  <section class="cartao" aria-labelledby="tit-a11y">
+    <h2 id="tit-a11y" style="font-size:1rem;margin:0;width:100%;">Preferências de acessibilidade</h2>
+
+    <div class="opcao">
+      <input type="checkbox" id="chk-dificil">
+      <label for="chk-dificil">Modo difícil
+        <span class="desc">Tentativas seguintes devem respeitar as dicas verdes e amarelas.</span>
+      </label>
+    </div>
+
+    <div class="opcao">
+      <input type="checkbox" id="chk-movimento">
+      <label for="chk-movimento">Reduzir animações
+        <span class="desc">Desliga flip e shake (também respeita a configuração do sistema).</span>
+      </label>
+    </div>
+
+    <div class="opcao">
+      <input type="checkbox" id="chk-contraste">
+      <label for="chk-contraste">Alto contraste
+        <span class="desc">Fundo preto, cores vivas e bordas mais grossas.</span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ===================== AÇÕES DA PARTIDA ===================== -->
+  <section class="cartao">
+    <button type="button" class="botao botao-principal" id="btn-dica">
+      💡 Usar dica <span aria-hidden="true">(custa 1 tentativa)</span>
+      <span class="sr">Revela uma letra correta, mas gasta uma tentativa.</span>
+    </button>
+    <button type="button" class="botao" id="btn-stats">📊 Estatísticas</button>
+    <button type="button" class="botao" id="btn-novo">🔄 Nova partida (livre)</button>
+  </section>
+
+  <!-- Legenda: significado de cada estado, independente de cor -->
+  <ul class="legenda" aria-label="Significado dos estados das letras">
+    <li><span class="simbolo ok" aria-hidden="true">✓</span> posição correta</li>
+    <li><span class="simbolo fora" aria-hidden="true">~</span> existe, posição errada</li>
+    <li><span class="simbolo nao" aria-hidden="true">✕</span> não existe na palavra</li>
+  </ul>
+
+  <!-- ===================== MENSAGENS (live regions) ===================== -->
+  <!--
+    Duas regiões vivas: erros usam role="alert" (assertivo) e o resultado do
+    turno usa role="status" (polite). Ambas são VISÍVEIS — a mensagem nunca é
+    comunicada só por cor ou por um toast passageiro.
+  -->
+  <div class="mensagens">
+    <p class="mensagem" id="status-vivo" role="status" aria-live="polite" aria-atomic="true"></p>
+    <p class="mensagem erro" id="alerta-vivo" role="alert" aria-live="assertive" aria-atomic="true"></p>
+  </div>
+
+  <!-- ===================== TABULEIRO ===================== -->
+  <!--
+    role="grid" semântico: grid > row > gridcell.
+    O grid recebe foco (tabindex=0) e usa aria-activedescendant para o cursor
+    movido pelas setas; cada célula tem aria-label próprio.
+  -->
+  <div class="tabuleiro" id="tabuleiro" role="grid"
+       aria-label="Tabuleiro do caça-palavras, 6 linhas por 5 colunas"
+       aria-describedby="instrucoes" tabindex="0"></div>
+
+  <!-- ===================== TECLADO VIRTUAL ===================== -->
+  <!--
+    Teclado virtual em botões reais. Setas navegam entre as teclas (roving
+    tabindex), Enter/disparo digitam a letra. Cada tecla recebe aria-label
+    descritivo ("Letra A, posição correta") e símbolo ✓/~/✕ além da cor.
+  -->
+  <div class="teclado" id="teclado" role="group" aria-label="Teclado virtual"></div>
+
+  <p style="font-size:.82rem;color:var(--texto-2);text-align:center;">
+    Sem som neste protótipo: o feedback é visual + por áudio de leitor de tela (regiões vivas).
+  </p>
+</main>
+
+<!-- ===================== MODAL: ESTATÍSTICAS ===================== -->
+<div class="fundo" id="fundo-stats" hidden></div>
+<div class="modal" id="dlg-stats" role="dialog" aria-modal="true"
+     aria-labelledby="tit-stats" aria-describedby="desc-stats" hidden>
+  <h2 id="tit-stats">Estatísticas</h2>
+  <p id="desc-stats" style="margin:0;font-size:.9rem;color:var(--texto-2);">Seus números são salvos apenas neste navegador.</p>
+
+  <h3 id="tit-stats-modo" style="font-size:.95rem;margin:0;">—</h3>
+  <ul class="grade-stats">
+    <li>Jogadas: <span class="valor" id="st-jogadas">0</span></li>
+    <li>Vitórias: <span class="valor" id="st-vitorias">0</span></li>
+    <li>Percentual de vitória: <span class="valor" id="st-pct">0%</span></li>
+    <li>Sequência atual: <span class="valor" id="st-streak">0</span></li>
+    <li>Maior sequência: <span class="valor" id="st-max">0</span></li>
+  </ul>
+
+  <h3 style="font-size:.95rem;margin:0;">Distribuição de tentativas</h3>
+  <!-- Barras são decorativas (aria-hidden); os números ao lado trazem a info. -->
+  <ul class="distribuicao" id="st-dist" aria-label="Distribuição de vitórias por número de tentativas"></ul>
+
+  <div class="acoes-modal">
+    <button type="button" class="botao fechar" data-fechar>Fechar</button>
+  </div>
+</div>
+
+<!-- ===================== MODAL: FIM DE JOGO ===================== -->
+<div class="fundo" id="fundo-fim" hidden></div>
+<div class="modal" id="dlg-fim" role="dialog" aria-modal="true"
+     aria-labelledby="tit-fim" aria-describedby="desc-fim" hidden>
+  <h2 id="tit-fim">Fim de jogo</h2>
+  <p id="desc-fim" style="margin:0;">A palavra era:</p>
+  <!-- Cada letra com rótulo próprio; nada depende só da cor verde -->
+  <div class="palavra-final" id="fim-palavra" role="text"
+       aria-label="Palavra secreta revelada"></div>
+  <p id="fim-resumo" style="margin:0;font-weight:600;"></p>
+  <div class="acoes-modal">
+    <button type="button" class="botao" id="btn-ver-stats">Ver estatísticas</button>
+    <button type="button" class="botao botao-principal" id="btn-jogar-novo">Jogar novamente</button>
+    <button type="button" class="botao fechar" data-fechar>Fechar</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ======================================================================
+     utilitários
+     ====================================================================== */
+  var $  = function(sel, raiz){ return (raiz||document).querySelector(sel); };
+  var $$ = function(sel, raiz){ return Array.prototype.slice.call((raiz||document).querySelectorAll(sel)); };
+
+  var ACENTOS = {'á':'a','à':'a','ã':'a','â':'a','ä':'a','å':'a','é':'e','ê':'e','è':'e','ë':'e',
+    'í':'i','ì':'i','î':'i','ï':'i','ó':'o','õ':'o','ô':'o','ò':'o','ö':'o','ú':'u','ù':'u',
+    'û':'u','ü':'u','ç':'c','ñ':'n','ÿ':'y'};
+  function normalizar(txt){
+    var out = '';
+    var min = String(txt).toLowerCase();
+    for(var i=0;i<min.length;i++){
+      out += (ACENTOS[min[i]] || min[i]);
+    }
+    return out.toUpperCase();
+  }
+
+  /* ======================================================================
+     dicionário (mini lista embutida — protótipo offline)
+     ====================================================================== */
+  var RESPOSTAS = ['AMIGO','AMIGA','CASAL','DADOS','IDEIA','JUNTA','LIVRO','MAGIA','MUNDO','NUVEM',
+    'PRADO','QUASE','RAPAZ','TERRA','TROCA','VALOR','VINHO','ZEBRA','BAILE','CAPAZ',
+    'CORVO','FARSA','ITENS','LIMPO','OLHOS','PEDRA','ROSAS','TOMAR','VOTAR'];
+  /* Palavras válidas que entram no dicionário, mas não sorteam como resposta */
+  var EXTRAS = ['ABRIR','BAIXO','CLARO','DIZER','FAZER','GARFO','JOGAR','MATAR','NUNCA','OBRAS',
+    'PILHA','RODAR','SOBRE','TARDE','USADO','VIRAR','VOLTA'];
+  var DICIONARIO = {};
+  RESPOSTAS.concat(EXTRAS).forEach(function(p){ DICIONARIO[p] = true; });
+
+  /* ======================================================================
+     persistência — localStorage com fallback em memória
+     (no protótipo: usa localStorage real; se indisponível, guarda em JS)
+     ====================================================================== */
+  var Banco = (function(){
+    var memoria = {};
+    var disponivel = true;
+    try{
+      localStorage.setItem('__teste_cp2','1');
+      localStorage.removeItem('__teste_cp2');
+    }catch(e){ disponivel = false; }
+    return {
+      ler:function(chave, padrao){
+        try{
+          var bruto = disponivel ? localStorage.getItem(chave) : memoria[chave];
+          if(bruto === null || bruto === undefined) return padrao;
+          return JSON.parse(bruto);
+        }catch(e){ return padrao; }
+      },
+      gravar:function(chave, valor){
+        try{
+          var bruto = JSON.stringify(valor);
+          if(disponivel) localStorage.setItem(chave, bruto);
+          else memoria[chave] = bruto;
+        }catch(e){ /* silencioso: persistência é melhor-esforço */ }
+      }
+    };
+  })();
+
+  var CHAVE_PREFS = 'cp2_prefs';
+  var CHAVE_STATS = 'cp2_stats_';   /* + modo */
+  var CHAVE_DIA   = 'cp2_dia_';     /* + data (progresso do diário) */
+
+  function statsVazio(){
+    return { jogadas:0, vitorias:0, dist:[0,0,0,0,0,0], streak:0, maxStreak:0 };
+  }
+  function lerStats(modo){
+    var s = Banco.ler(CHAVE_STATS + modo, null);
+    if(!s || typeof s.jogadas !== 'number') return statsVazio();
+    if(!Array.isArray(s.dist) || s.dist.length !== 6) s.dist = [0,0,0,0,0,0];
+    return s;
+  }
+  function gravarStats(modo, s){ Banco.gravar(CHAVE_STATS + modo, s); }
+
+  /* ======================================================================
+     palavra do dia (determinística pela data — mesmo resultado p/ todos)
+     ====================================================================== */
+  function hashTexto(txt){
+    var h = 2166136261;
+    for(var i=0;i<txt.length;i++){
+      h = h ^ txt.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function hojeChave(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function palavraDoDia(){
+    return RESPOSTAS[hashTexto('cacapalavras|' + hojeChave()) % RESPOSTAS.length];
+  }
+
+  /* ======================================================================
+     estado do jogo
+     ====================================================================== */
+  var prefs = Banco.ler(CHAVE_PREFS, null) || { modo:'diario', dificil:false, movimento:false, contraste:false };
+  if(typeof prefs.modo !== 'string') prefs.modo = 'diario';
+
+  var jogo = null; /* reiniciado a cada partida */
+
+  function novoJogo(modo){
+    return {
+      modo: modo,
+      resposta: modo === 'diario' ? palavraDoDia() : RESPOSTAS[Math.floor(Math.random()*RESPOSTAS.length)],
+      linha: 0,                       /* linha atual (0..6) */
+      slots: [null,null,null,null,null], /* letras digitadas na linha atual */
+      travadas: {},                   /* posições reveladas pela dica: {pos:letra} */
+      custoDica: 0,                   /* tentativas que esta linha vai custar */
+      linhas: [],                     /* {palavra, resultados[]} já enviadas */
+      gastas: [],                     /* linhas gastas com dica */
+      fim: false,
+      venceu: false
+    };
+  }
+
+  /* ======================================================================
+     elementos
+     ====================================================================== */
+  var tabuleiro = $('#tabuleiro');
+  var tecladoEl = $('#teclado');
+  var statusVivo = $('#status-vivo');
+  var alertaVivo = $('#alerta-vivo');
+  var btnDica = $('#btn-dica');
+  var cursor = { l:0, c:0 };   /* cursor do grid (setas) */
+  var celulas = [];            /* celulas[l][c] */
+  var teclas = {};             /* teclas['A'] -> botão */
+
+  /* ======================================================================
+     construção do tabuleiro (6 linhas × 5 células)
+     ====================================================================== */
+  var LETRAS_SINAL = { ok:'✓', fora:'~', nao:'✕' };
+  var ROTULO_ESTADO = {
+    ok:'posição correta',
+    fora:'existe na palavra, posição errada',
+    nao:'não existe na palavra'
+  };
+
+  function montarTabuleiro(){
+    for(var l=0; l<6; l++){
+      var linha = document.createElement('div');
+      linha.className = 'linha';
+      linha.setAttribute('role','row');
+      linha.setAttribute('aria-label','Linha ' + (l+1));
+      celulas[l] = [];
+      for(var c=0; c<5; c++){
+        var cel = document.createElement('div');
+        cel.className = 'celula';
+        cel.setAttribute('role','gridcell');
+        cel.id = 'cel-' + l + '-' + c;
+        var letra = document.createElement('span');
+        letra.className = 'letra';
+        var sinal = document.createElement('span');
+        sinal.className = 'sinal';
+        sinal.setAttribute('aria-hidden','true'); /* o significado vive no aria-label */
+        cel.appendChild(letra);
+        cel.appendChild(sinal);
+        linha.appendChild(cel);
+        celulas[l][c] = cel;
+      }
+      tabuleiro.appendChild(linha);
+    }
+    atualizarCursor();
+  }
+
+  /* rótulo ARIA completo de uma célula */
+  function rotuloCelula(l, c){
+    var base = 'Linha ' + (l+1) + ', coluna ' + (c+1) + ': ';
+    var cel = celulas[l][c];
+    if(cel.classList.contains('gasta')) return base + 'tentativa gasta pela dica';
+    var letra = jogo.slots[c];
+    var estado = cel.getAttribute('data-estado');
+    if(!letra) return base + 'vazia';
+    var txt = base + 'letra ' + letra;
+    if(estado) txt += ', ' + ROTULO_ESTADO[estado];
+    else txt += ', ainda sem avaliação';
+    if(cel.classList.contains('dica')) txt += ', revelada pela dica';
+    return txt;
+  }
+
+  function pintarCelula(l, c, opts){
+    opts = opts || {};
+    var cel = celulas[l][c];
+    var letraEl = $('.letra', cel);
+    var sinalEl = $('.sinal', cel);
+    var letra = jogo.slots[c];
+    letraEl.textContent = letra || '';
+    var estado = opts.estado || null;
+    cel.classList.remove('ok','fora','nao','dica','preenchida');
+    if(estado){
+      cel.setAttribute('data-estado', estado);
+      cel.classList.add(estado);
+      sinalEl.textContent = LETRAS_SINAL[estado];
+    }else{
+      cel.removeAttribute('data-estado');
+      sinalEl.textContent = '';
+    }
+    if(opts.dica) cel.classList.add('dica');
+    if(opts.preenchida && !estado) cel.classList.add('preenchida');
+    cel.setAttribute('aria-label', rotuloCelula(l, c));
+  }
+
+  function limparLinha(l){
+    for(var c=0;c<5;c++){
+      jogo.slots[c] = null;
+      pintarCelula(l, c, {});
+    }
+  }
+
+  function marcarLinhaGasta(l){
+    var cel = celulas[l];
+    for(var c=0;c<5;c++){
+      cel[c].classList.remove('ok','fora','nao','dica','preenchida');
+      cel[c].classList.add('gasta');
+      cel[c].removeAttribute('data-estado');
+      $('.letra', cel[c]).textContent = '–';
+      $('.sinal', cel[c]).textContent = '⊘';
+      cel[c].setAttribute('aria-label', rotuloCelula(l, c));
+    }
+  }
+
+  function atualizarCursor(){
+    $$('.celula.cursor', tabuleiro).forEach(function(el){ el.classList.remove('cursor'); });
+    var cel = celulas[cursor.l][cursor.c];
+    cel.classList.add('cursor');
+    tabuleiro.setAttribute('aria-activedescendant', cel.id);
+  }
+
+  /* ======================================================================
+     construção do teclado virtual
+     ====================================================================== */
+  var LINHAS_TECLADO = [
+    ['Q','W','E','R','T','Y','U','I','O','P'],
+    ['A','S','D','F','G','H','J','K','L'],
+    ['ENTER','Z','X','C','V','B','N','M','BACKSPACE']
+  ];
+
+  function montarTeclado(){
+    LINHAS_TECLADO.forEach(function(linha, li){
+      var div = document.createElement('div');
+      div.className = 'teclado-linha';
+      div.setAttribute('role','group');
+      linha.forEach(function(k){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tecla' + (k === 'ENTER' || k === 'BACKSPACE' ? ' acao' : '');
+        b.setAttribute('data-tecla', k);
+        /* roving tabindex: primeira tecla de cada linha entra na ordem de Tab */
+        b.tabIndex = -1;
+        if(k === 'ENTER'){
+          b.textContent = 'Enviar';
+          b.setAttribute('aria-label','Confirmar tentativa');
+        }else if(k === 'BACKSPACE'){
+          b.textContent = 'Apagar ⌫';
+          b.setAttribute('aria-label','Apagar última letra');
+        }else{
+          b.textContent = k;
+          b.setAttribute('aria-label','Letra ' + k);
+          teclas[k] = b;
+        }
+        div.appendChild(b);
+      });
+      tecladoEl.appendChild(div);
+    });
+    /* primeira linha, primeira letra = ponto de entrada do Tab no teclado */
+    teclas['Q'].tabIndex = 0;
+  }
+
+  /* prioridade visual: verde > amarelo > cinza (regra do Wordle) */
+  var RANK = { ok:3, fora:2, nao:1 };
+  function atualizarTeclas(resultados){
+    resultados.forEach(function(r){
+      var b = teclas[r.letra];
+      if(!b) return;
+      var atual = b.getAttribute('data-estado');
+      if(atual && RANK[atual] >= RANK[r.estado]) return;
+      b.setAttribute('data-estado', r.estado);
+      b.classList.remove('ok','fora','nao');
+      b.classList.add(r.estado);
+      b.setAttribute('aria-label','Letra ' + r.letra + ', ' + ROTULO_ESTADO[r.estado]);
+    });
+  }
+  function limparTeclas(){
+    Object.keys(teclas).forEach(function(k){
+      var b = teclas[k];
+      b.removeAttribute('data-estado');
+      b.classList.remove('ok','fora','nao');
+      b.setAttribute('aria-label','Letra ' + k);
+    });
+  }
+
+  /* ======================================================================
+     mensagens: visíveis + anunciadas (nada só por cor/toast)
+     ====================================================================== */
+  function anunciar(txt){
+    statusVivo.textContent = '';
+    alertaVivo.textContent = '';
+    statusVivo.className = 'mensagem';
+    /* reflow forçada garante que leitores de tela reanunciem textos iguais */
+    void statusVivo.offsetWidth;
+    statusVivo.textContent = txt;
+  }
+  function erro(txt){
+    statusVivo.textContent = '';
+    alertaVivo.textContent = '';
+    void alertaVivo.offsetWidth;
+    alertaVivo.textContent = txt;
+    sacudirLinha(jogo.linha);
+  }
+  function sucesso(txt){
+    statusVivo.textContent = '';
+    alertaVivo.textContent = '';
+    statusVivo.className = 'mensagem sucesso';
+    void statusVivo.offsetWidth;
+    statusVivo.textContent = txt;
+  }
+
+  /* ======================================================================
+     algoritmo de feedback (regra do Wordle p/ letras repetidas)
+     ====================================================================== */
+  function avaliar(palavra, resposta){
+    var res = new Array(5);
+    var resto = {};
+    var i;
+    for(i=0;i<5;i++){
+      if(palavra[i] === resposta[i]){ res[i] = 'ok'; }
+      else{ resto[resposta[i]] = (resto[resposta[i]] || 0) + 1; }
+    }
+    for(i=0;i<5;i++){
+      if(res[i]) continue;
+      if(resto[palavra[i]] > 0){ res[i] = 'fora'; resto[palavra[i]]--; }
+      else{ res[i] = 'nao'; }
+    }
+    var out = [];
+    for(i=0;i<5;i++) out.push({ letra:palavra[i], estado:res[i] });
+    return out;
+  }
+
+  /* frase anunciada: cor + significado (nunca só a cor) */
+  function fraseResultado(linha, resultados){
+    var partes = resultados.map(function(r){
+      var cor = r.estado === 'ok' ? 'verde' : (r.estado === 'fora' ? 'amarela' : 'cinza');
+      return r.letra + ' ' + cor + ' — ' + ROTULO_ESTADO[r.estado];
+    });
+    return 'Linha ' + linha + ': ' + partes.join('. ') + '.';
+  }
+
+  /* ======================================================================
+     animações (desligáveis por prefers-reduced-motion ou toggle)
+     ====================================================================== */
+  function movimentosReduzidos(){
+    return prefs.movimento ||
+      (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function sacudirLinha(l){
+    if(movimentosReduzidos() || l >= 6) return;
+    var linha = celulas[l][0].parentNode;
+    linha.classList.remove('shake');
+    void linha.offsetWidth;
+    linha.classList.add('shake');
+    setTimeout(function(){ linha.classList.remove('shake'); }, 550);
+  }
+
+  /* ======================================================================
+     inserção de letras / apagar / confirmar
+     ====================================================================== */
+  function posLivre(){
+    for(var c=0;c<5;c++){ if(jogo.slots[c] === null) return c; }
+    return -1;
+  }
+
+  function digitar(letra){
+    if(jogo.fim) return;
+    var c = posLivre();
+    if(c === -1){ erro('Linha completa. Confirme com Enter ou apague uma letra.'); return; }
+    jogo.slots[c] = letra;
+    cursor.c = Math.min(c+1, 4);
+    pintarCelula(jogo.linha, c, { preenchida:true, dica:!!jogo.travadas[c] });
+    atualizarCursor();
+  }
+
+  function apagar(){
+    if(jogo.fim) return;
+    for(var c=4;c>=0;c--){
+      if(jogo.slots[c] !== null && !jogo.travadas[c]){
+        jogo.slots[c] = null;
+        cursor.c = c;
+        pintarCelula(jogo.linha, c, {});
+        atualizarCursor();
+        return;
+      }
+    }
+    /* nada para apagar nesta linha */
+  }
+
+  function linhaPreenchida(){
+    for(var c=0;c<5;c++){ if(jogo.slots[c] === null) return false; }
+    return true;
+  }
+
+  /* valida regras do modo difícil antes de aceitar o chute */
+  function checarModoDificil(palavra){
+    if(!prefs.dificil || jogo.linhas.length === 0) return null;
+    var anteriores = jogo.linhas[jogo.linhas.length-1].resultados;
+    var verdes = [], amarelas = [];
+    anteriores.forEach(function(r, i){
+      if(r.estado === 'ok') verdes.push({letra:r.letra, pos:i});
+      if(r.estado === 'fora') amarelas.push(r.letra);
+    });
+    for(var i=0;i<verdes.length;i++){
+      if(palavra[verdes[i].pos] !== verdes[i].letra){
+        return 'Modo difícil: a tentativa deve manter a letra ' + verdes[i].letra +
+               ' na posição ' + (verdes[i].pos+1) + '.';
+      }
+    }
+    var unicas = amarelas.filter(function(v, idx, arr){ return arr.indexOf(v) === idx; });
+    for(var j=0;j<unicas.length;j++){
+      if(palavra.indexOf(unicas[j]) === -1){
+        return 'Modo difícil: a tentativa deve conter a letra ' + unicas[j] + '.';
+      }
+    }
+    return null;
+  }
+
+  function confirmar(){
+    if(jogo.fim) return;
+    if(!linhaPreenchida()){
+      erro('Faltam letras. A linha precisa ter 5 letras antes de confirmar.');
+      return;
+    }
+    var palavra = jogo.slots.join('');
+
+    if(!DICIONARIO[palavra]){
+      erro('Palavra não encontrada no dicionário. Tente outra palavra de 5 letras.');
+      return;
+    }
+    var violacao = checarModoDificil(palavra);
+    if(violacao){ erro(violacao); return; }
+
+    var resultados = avaliar(palavra, jogo.resposta);
+    var linhaIdx = jogo.linha;
+
+    jogarLinha(linhaIdx, palavra, resultados, function(){
+      jogo.linhas.push({ palavra:palavra, resultados:resultados });
+      atualizarTeclas(resultados);
+
+      var ganhou = palavra === jogo.resposta;
+
+      if(ganhou){
+        jogo.fim = true; jogo.venceu = true;
+        registrarFim(true, linhaIdx + 1);
+        sucesso(fraseResultado(linhaIdx+1, resultados) +
+          ' Parabéns! Você acertou a palavra ' + jogo.resposta + ' em ' + (linhaIdx+1) + ' tentativa(s).');
+        fimDeJogo(true, linhaIdx+1);
+        return;
+      }
+
+      /* avança a linha; se a linha custou dica(s), pula linhas equivalentes */
+      var saltos = 1 + jogo.custoDica;
+      var proxima = Math.min(linhaIdx + saltos, 6);
+      for(var k=1; k<=jogo.custoDica; k++){
+        var gasta = linhaIdx + k;
+        if(gasta <= 5){ jogo.gastas.push(gasta); marcarLinhaGasta(gasta); }
+      }
+      jogo.custoDica = 0;
+      jogo.travadas = {};
+      jogo.linha = proxima;
+      jogo.slots = [null,null,null,null,null];
+
+      if(jogo.linha >= 6){
+        jogo.fim = true; jogo.venceu = false;
+        registrarFim(false, 6);
+        erro(fraseResultado(linhaIdx+1, resultados) +
+          ' Fim de jogo. A palavra era ' + jogo.resposta + '.');
+        fimDeJogo(false, 6);
+        return;
+      }
+
+      cursor.l = jogo.linha; cursor.c = 0;
+      atualizarCursor();
+      anunciar(fraseResultado(linhaIdx+1, resultados) +
+        ' Tentativa ' + (jogo.linha+1) + ' de 6.');
+      salvarProgresso();
+    });
+  }
+
+  /* animação de flip (com stagger); imediata quando o movimento está reduzido */
+  function jogarLinha(l, palavra, resultados, aoTerminar){
+    if(movimentosReduzidos()){
+      for(var c=0;c<5;c++){
+        pintarCelula(l, c, { estado:resultados[c].estado, dica:!!jogo.travadas[c] });
+      }
+      aoTerminar();
+      return;
+    }
+    var passo = 320, duracao = 600;
+    resultados.forEach(function(r, c){
+      setTimeout(function(){
+        var cel = celulas[l][c];
+        cel.classList.remove('virando');
+        void cel.offsetWidth;
+        cel.classList.add('virando');
+        setTimeout(function(){
+          pintarCelula(l, c, { estado:r.estado, dica:!!jogo.travadas[c] });
+        }, duracao/2);
+      }, c * passo);
+    });
+    setTimeout(function(){
+      for(var c=0;c<5;c++) celulas[l][c].classList.remove('virando');
+      aoTerminar();
+    }, (resultados.length-1) * passo + duracao + 20);
+  }
+
+  /* ======================================================================
+     dica — revela 1 letra verde e custa 1 tentativa
+     ====================================================================== */
+  function usarDica(){
+    if(jogo.fim) return;
+    if(jogo.linha >= 6){ erro('Não há tentativas disponíveis para usar dicas.'); return; }
+    var candidatas = [];
+    for(var c=0;c<5;c++){
+      if(!jogo.travadas[c]) candidatas.push(c);
+    }
+    if(candidatas.length === 0){ erro('Todas as letras desta linha já foram reveladas pela dica.'); return; }
+    var pos = candidatas[Math.floor(Math.random()*candidatas.length)];
+    jogo.travadas[pos] = jogo.resposta[pos];
+    jogo.slots[pos] = jogo.resposta[pos];
+    jogo.custoDica += 1;
+    cursor.c = pos;
+    pintarCelula(jogo.linha, pos, { estado:'ok', dica:true });
+    atualizarCursor();
+    var msg = 'Dica: a letra na posição ' + (pos+1) + ' é ' + jogo.resposta[pos] +
+      '. Esta tentativa vai consumir 1 tentativa extra.';
+    if(prefs.dificil) msg += ' No modo difícil, as próximas tentativas precisam respeitar esta dica.';
+    sucesso(msg);
+    salvarProgresso();
+  }
+
+  /* ======================================================================
+     estatísticas
+     ====================================================================== */
+  function registrarFim(venceu, tentativas){
+    var s = lerStats(jogo.modo);
+    s.jogadas += 1;
+    if(venceu){
+      s.vitorias += 1;
+      s.dist[tentativas-1] += 1;
+      s.streak += 1;
+      if(s.streak > s.maxStreak) s.maxStreak = s.streak;
+    }else{
+      s.streak = 0;
+    }
+    gravarStats(jogo.modo, s);
+    salvarProgresso();
+  }
+
+  function renderizarStats(modo){
+    var s = lerStats(modo);
+    var pct = s.jogadas ? Math.round(s.vitorias / s.jogadas * 100) : 0;
+    $('#tit-stats-modo').textContent = modo === 'diario'
+      ? 'Desafio diário — palavra de ' + hojeChave()
+      : 'Modo livre';
+    $('#st-jogadas').textContent = s.jogadas;
+    $('#st-vitorias').textContent = s.vitorias;
+    $('#st-pct').textContent = pct + '%';
+    $('#st-streak').textContent = s.streak;
+    $('#st-max').textContent = s.maxStreak;
+
+    var dist = $('#st-dist');
+    dist.innerHTML = '';
+    var maximo = Math.max.apply(null, s.dist.concat([1]));
+    for(var i=0;i<6;i++){
+      var li = document.createElement('li');
+      if(jogo && jogo.venceu && jogo.linhas.length === i+1) li.className = 'atual';
+      var rot = document.createElement('span');
+      rot.textContent = String(i+1);
+      var fundo = document.createElement('div');
+      fundo.className = 'barra-fundo';
+      fundo.setAttribute('aria-hidden','true'); /* a informação está no texto */
+      var barra = document.createElement('div');
+      barra.className = 'barra';
+      barra.style.setProperty('--pct', Math.round(s.dist[i]/maximo*100) + '%');
+      fundo.appendChild(barra);
+      var val = document.createElement('span');
+      val.textContent = s.dist[i] + (s.dist[i] === 1 ? ' vitória' : ' vitórias');
+      li.appendChild(rot); li.appendChild(fundo); li.appendChild(val);
+      li.setAttribute('aria-label',
+        (i+1) + (i===0 ? ' tentativa' : ' tentativas') + ': ' + s.dist[i] + ' ' +
+        (s.dist[i] === 1 ? 'vitória' : 'vitórias'));
+      dist.appendChild(li);
+    }
+  }
+
+  /* ======================================================================
+     modais — focus trap, Esc, restauração do foco
+     ====================================================================== */
+  var focoAnterior = null;
+  var modalAberto = null;
+
+  function focaveis(dlg){
+    /* elementos desabilitados ou dentro de subárvores ocultas são ignorados */
+    return $$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', dlg)
+      .filter(function(el){ return !el.disabled && !el.closest('[hidden]'); });
+  }
+  function aoFocoDentro(e){
+    if(!modalAberto || modalAberto.contains(e.target)) return;
+    var lista = focaveis(modalAberto);
+    if(lista.length) lista[0].focus();
+  }
+  function abrirModal(dlg, fundo){
+    focoAnterior = document.activeElement;
+    modalAberto = dlg;
+    fundo.hidden = false;
+    dlg.hidden = false;
+    document.addEventListener('focusin', aoFocoDentro);
+    var lista = focaveis(dlg);
+    if(lista.length) lista[0].focus();
+  }
+  function fecharModal(){
+    if(!modalAberto) return;
+    var dlg = modalAberto;
+    dlg.hidden = true;
+    var fundo = dlg.id === 'dlg-stats' ? $('#fundo-stats') : $('#fundo-fim');
+    fundo.hidden = true;
+    modalAberto = null;
+    document.removeEventListener('focusin', aoFocoDentro);
+    if(focoAnterior && focoAnterior.focus) focoAnterior.focus();
+  }
+
+  document.addEventListener('keydown', function(e){
+    if(!modalAberto) return;
+    if(e.key === 'Escape'){ e.preventDefault(); fecharModal(); return; }
+    if(e.key === 'Tab'){
+      var lista = focaveis(modalAberto);
+      if(!lista.length) return;
+      var primeiro = lista[0], ultimo = lista[lista.length-1];
+      if(e.shiftKey && document.activeElement === primeiro){ e.preventDefault(); ultimo.focus(); }
+      else if(!e.shiftKey && document.activeElement === ultimo){ e.preventDefault(); primeiro.focus(); }
+    }
+  });
+  $$('[data-fechar]').forEach(function(b){ b.addEventListener('click', fecharModal); });
+  $('#fundo-stats').addEventListener('click', fecharModal);
+  $('#fundo-fim').addEventListener('click', fecharModal);
+
+  function abrirStats(){
+    renderizarStats(jogo.modo);
+    abrirModal($('#dlg-stats'), $('#fundo-stats'));
+  }
+
+  /* ======================================================================
+     fim de jogo — revela a palavra e oferece os próximos passos
+     ====================================================================== */
+  function fimDeJogo(venceu, tentativas){
+    var tit = $('#tit-fim');
+    tit.textContent = venceu ? '🎉 Você venceu!' : '🏁 Fim de jogo';
+    var wrap = $('#fim-palavra');
+    wrap.innerHTML = '';
+    for(var i=0;i<5;i++){
+      var sp = document.createElement('span');
+      sp.textContent = jogo.resposta[i];
+      wrap.appendChild(sp);
+    }
+    wrap.setAttribute('aria-label','Palavra secreta: ' + jogo.resposta.split('').join(', '));
+    var s = lerStats(jogo.modo);
+    $('#fim-resumo').textContent = venceu
+      ? 'Descoberta em ' + tentativas + ' tentativa(s). Sequência atual: ' + s.streak + '.'
+      : 'A palavra era ' + jogo.resposta + '. Sequência atual zerada.';
+
+    var btnNovo = $('#btn-jogar-novo');
+    if(jogo.modo === 'diario'){
+      btnNovo.disabled = true;
+      btnNovo.setAttribute('aria-disabled','true');
+      btnNovo.textContent = 'Volte amanhã para o desafio diário';
+    }else{
+      btnNovo.disabled = false;
+      btnNovo.removeAttribute('aria-disabled');
+      btnNovo.textContent = 'Jogar novamente';
+    }
+    /* abre após um breve intervalo para o anúncio da live region chegar antes */
+    setTimeout(function(){
+      abrirModal($('#dlg-fim'), $('#fundo-fim'));
+    }, movimentosReduzidos() ? 60 : 700);
+  }
+
+  /* ======================================================================
+     persistência do progresso (modo diário)
+     ====================================================================== */
+  function salvarProgresso(){
+    if(jogo.modo !== 'diario') return;
+    Banco.gravar(CHAVE_DIA + hojeChave(), {
+      resposta: jogo.resposta,
+      linha: jogo.linha,
+      slots: jogo.slots,
+      travadas: jogo.travadas,
+      custoDica: jogo.custoDica,
+      linhas: jogo.linhas,
+      gastas: jogo.gastas,
+      fim: jogo.fim,
+      venceu: jogo.venceu
+    });
+  }
+
+  function restaurarProgresso(){
+    if(jogo.modo !== 'diario') return false;
+    var salvo = Banco.ler(CHAVE_DIA + hojeChave(), null);
+    if(!salvo || salvo.resposta !== jogo.resposta) return false;
+    jogo.linha = salvo.linha || 0;
+    jogo.travadas = salvo.travadas || {};
+    jogo.custoDica = salvo.custoDica || 0;
+    jogo.linhas = salvo.linhas || [];
+    jogo.gastas = salvo.gastas || [];
+    jogo.fim = !!salvo.fim;
+    jogo.venceu = !!salvo.venceu;
+
+    /* reavalia sem animação para reconstruir o tabuleiro e o teclado */
+    jogo.linhas.forEach(function(item, l){
+      for(var c=0;c<5;c++){
+        jogo.slots[c] = item.palavra[c];
+        pintarCelula(l, c, { estado:item.resultados[c].estado, dica:!!jogo.travadas[c] && l === jogo.linha });
+      }
+      jogo.slots = [null,null,null,null,null];
+      atualizarTeclas(item.resultados);
+    });
+    jogo.gastas.forEach(marcarLinhaGasta);
+    if(!jogo.fim && jogo.linha < 6){
+      (salvo.slots || []).forEach(function(letra, c){
+        if(letra){ jogo.slots[c] = letra; pintarCelula(jogo.linha, c, { preenchida:true, dica:!!jogo.travadas[c] }); }
+      });
+    }
+    cursor.l = Math.min(jogo.linha, 5);
+    atualizarCursor();
+    return true;
+  }
+
+  /* ======================================================================
+     preferências (toggles de acessibilidade)
+     ====================================================================== */
+  function aplicarPrefs(){
+    document.documentElement.setAttribute('data-contraste', prefs.contraste ? 'alto' : 'normal');
+    document.documentElement.setAttribute('data-movimento', prefs.movimento ? 'reduzido' : 'normal');
+    $('#chk-dificil').checked = !!prefs.dificil;
+    $('#chk-movimento').checked = !!prefs.movimento;
+    $('#chk-contraste').checked = !!prefs.contraste;
+    var rbD = $('#rb-diario'), rbL = $('#rb-livre');
+    rbD.checked = prefs.modo === 'diario';
+    rbL.checked = prefs.modo === 'livre';
+    $('#desc-modo').textContent = prefs.modo === 'diario'
+      ? 'Uma palavra por dia, igual para todos. Reinicia à meia-noite.'
+      : 'Palavra aleatória a cada partida, jogável quantas vezes quiser.';
+    Banco.gravar(CHAVE_PREFS, prefs);
+  }
+
+  /* ======================================================================
+     iniciar / reiniciar partida
+     ====================================================================== */
+  function iniciar(modo, restaurando){
+    jogo = novoJogo(modo);
+    for(var l=0;l<6;l++){
+      for(var c=0;c<5;c++){
+        celulas[l][c].classList.remove('ok','fora','nao','dica','gasta','preenchida','virando');
+        celulas[l][c].removeAttribute('data-estado');
+        $('.letra', celulas[l][c]).textContent = '';
+        $('.sinal', celulas[l][c]).textContent = '';
+        celulas[l][c].setAttribute('aria-label','Linha ' + (l+1) + ', coluna ' + (c+1) + ': vazia');
+      }
+    }
+    limparTeclas();
+    alertaVivo.textContent = '';
+    statusVivo.textContent = '';
+    statusVivo.className = 'mensagem';
+    btnDica.disabled = false;
+    cursor.l = 0; cursor.c = 0;
+
+    if(modo === 'diario' && restaurando !== false && restaurarProgresso()){
+      if(jogo.fim){
+        btnDica.disabled = true;
+        anunciar('Partida do dia já concluída. A palavra era ' + jogo.resposta +
+          '. Veja suas estatísticas ou jogue no modo livre.');
+      }else{
+        anunciar('Partida do dia restaurada. Tentativa ' + (jogo.linha+1) + ' de 6.');
+      }
+    }else{
+      anunciar(modo === 'diario'
+        ? 'Novo desafio diário. Tentativa 1 de 6.'
+        : 'Modo livre iniciado. Tentativa 1 de 6.');
+    }
+    atualizarCursor();
+  }
+
+  /* ======================================================================
+     eventos — teclado físico
+     ====================================================================== */
+  function alvoTexto(el){
+    if(!el) return false;
+    var tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
+  document.addEventListener('keydown', function(e){
+    if(modalAberto) return;                 /* modal cuida de seu próprio teclado */
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+
+    var alvo = e.target;
+    var noTeclado = tecladoEl.contains(alvo);
+    var noGrid = alvo === tabuleiro;
+
+    /* setas: navegam o teclado virtual ou o cursor do grid */
+    var setas = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
+    if(setas.indexOf(e.key) !== -1){
+      if(noTeclado){ moverTeclado(alvo, e); return; }
+      if(noGrid){ moverCursorGrid(e); return; }
+      return; /* demais casos: comportamento nativo (ex.: radios) */
+    }
+    if(e.key === 'Home' && noTeclado){ focarTecla(teclas['Q']); e.preventDefault(); return; }
+    if(e.key === 'End' && noTeclado){ focarTecla(teclas['P']); e.preventDefault(); return; }
+
+    if(e.key === 'Backspace'){
+      if(alvoTexto(alvo)) return;
+      apagar(); e.preventDefault(); return;
+    }
+    if(e.key === 'Enter'){
+      /* deixa o Enter agir nativamente sobre botões/radios em foco */
+      if(alvo && (alvo.tagName === 'BUTTON' || alvo.tagName === 'A' || alvo.isContentEditable)) return;
+      if(alvoTexto(alvo)) return;
+      confirmar(); e.preventDefault(); return;
+    }
+    if(alvoTexto(alvo)) return;
+
+    /* letras (com ou sem acento) digitam no tabuleiro */
+    var letra = normalizar(e.key);
+    if(letra.length === 1 && letra >= 'A' && letra <= 'Z'){
+      digitar(letra);
+      e.preventDefault();
+    }
+  });
+
+  /* ======================================================================
+     eventos — navegação no teclado virtual (roving tabindex)
+     ====================================================================== */
+  function teclaBotao(el){
+    return el && el.classList && el.classList.contains('tecla') ? el : null;
+  }
+  function focarTecla(btn){
+    if(!btn) return;
+    $$('.tecla', tecladoEl).forEach(function(b){ b.tabIndex = -1; });
+    btn.tabIndex = 0;
+    btn.focus();
+  }
+  function moverTeclado(alvo, e){
+    var btn = teclaBotao(alvo) || document.activeElement;
+    btn = teclaBotao(btn);
+    if(!btn) return;
+    var linhas = $$('.teclado-linha', tecladoEl);
+    var li = linhas.findIndex(function(l){ return l.contains(btn); });
+    var col = Array.prototype.indexOf.call(linhas[li].children, btn);
+    var novoLi = li, novoCol = col;
+    if(e.key === 'ArrowLeft')  novoCol = Math.max(0, col-1);
+    if(e.key === 'ArrowRight') novoCol = Math.min(linhas[li].children.length-1, col+1);
+    if(e.key === 'ArrowUp')    novoLi = Math.max(0, li-1);
+    if(e.key === 'ArrowDown')  novoLi = Math.min(linhas.length-1, li+1);
+    if(novoLi !== li){
+      var alvoLinha = linhas[novoLi].children;
+      novoCol = Math.min(col, alvoLinha.length-1);
+    }
+    focarTecla(linhas[novoLi].children[novoCol]);
+    e.preventDefault();
+  }
+  tecladoEl.addEventListener('click', function(e){
+    var btn = teclaBotao(e.target.closest ? e.target.closest('.tecla') : null);
+    if(!btn) return;
+    if(btn.tabIndex !== 0) focarTecla(btn); /* mantém roving tabindex coerente */
+    var k = btn.getAttribute('data-tecla');
+    if(k === 'ENTER') confirmar();
+    else if(k === 'BACKSPACE') apagar();
+    else digitar(k);
+  });
+
+  /* ======================================================================
+     eventos — cursor do grid com setas (aria-activedescendant)
+     ====================================================================== */
+  function moverCursorGrid(e){
+    if(e.key === 'ArrowLeft')  cursor.c = Math.max(0, cursor.c-1);
+    if(e.key === 'ArrowRight') cursor.c = Math.min(4, cursor.c+1);
+    if(e.key === 'ArrowUp')    cursor.l = Math.max(0, cursor.l-1);
+    if(e.key === 'ArrowDown')  cursor.l = Math.min(5, cursor.l+1);
+    atualizarCursor();
+    e.preventDefault();
+  }
+
+  /* ======================================================================
+     eventos — botões e toggles
+     ====================================================================== */
+  btnDica.addEventListener('click', usarDica);
+  $('#btn-stats').addEventListener('click', abrirStats);
+  $('#btn-novo').addEventListener('click', function(){
+    $('#rb-livre').checked = true;
+    prefs.modo = 'livre'; Banco.gravar(CHAVE_PREFS, prefs);
+    aplicarPrefs();
+    iniciar('livre');
+  });
+  $('#btn-jogar-novo').addEventListener('click', function(){
+    fecharModal();
+    iniciar('livre');
+  });
+  $('#btn-ver-stats').addEventListener('click', function(){
+    fecharModal();
+    abrirStats();
+  });
+
+  $$('input[name="modo"]').forEach(function(rb){
+    rb.addEventListener('change', function(){
+      if(!rb.checked) return;
+      prefs.modo = rb.value; Banco.gravar(CHAVE_PREFS, prefs);
+      aplicarPrefs();
+      iniciar(prefs.modo);
+    });
+  });
+
+  $('#chk-dificil').addEventListener('change', function(e){
+    prefs.dificil = e.target.checked; Banco.gravar(CHAVE_PREFS, prefs);
+    anunciar(prefs.dificil
+      ? 'Modo difícil ativado: as próximas tentativas devem respeitar as dicas verdes e amarelas.'
+      : 'Modo difícil desativado.');
+  });
+  $('#chk-movimento').addEventListener('change', function(e){
+    prefs.movimento = e.target.checked; Banco.gravar(CHAVE_PREFS, prefs);
+    aplicarPrefs();
+    anunciar(prefs.movimento
+      ? 'Animações reduzidas: flip e shake desativados.'
+      : 'Animações reativadas.');
+  });
+  $('#chk-contraste').addEventListener('change', function(e){
+    prefs.contraste = e.target.checked; Banco.gravar(CHAVE_PREFS, prefs);
+    aplicarPrefs();
+    anunciar(prefs.contraste
+      ? 'Modo alto contraste ativado (fundo preto, cores vivas, bordas grossas).'
+      : 'Modo alto contraste desativado.');
+  });
+
+  /* ======================================================================
+     boot
+     ====================================================================== */
+  montarTabuleiro();
+  montarTeclado();
+  aplicarPrefs();
+  iniciar(prefs.modo);
+})();
+</script>
+</body>
+</html>

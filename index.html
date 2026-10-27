@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Caça-palavras - Jogo casual de adivinhação de palavras em português brasileiro">
+  <title>Caça-palavras - Expedição Noturna</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-group">
+      <h1 class="logo">Caça-palavras</h1>
+      <div class="mode-select" role="group" aria-label="Modo de jogo">
+        <button class="mode-btn active" data-mode="daily" aria-pressed="true">Diário</button>
+        <button class="mode-btn" data-mode="free" aria-pressed="false">Livre</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="icon-btn" id="hardModeBtn" title="Modo difícil" aria-label="Ativar modo difícil">🔥</button>
+      <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar entre tema claro e escuro">☀️</button>
+      <button class="icon-btn" id="soundBtn" title="Som" aria-label="Ativar ou desativar som">🔊</button>
+      <button class="icon-btn" id="statsBtn" title="Estatísticas" aria-label="Ver estatísticas">📊</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="status-bar" id="statusBar" aria-live="polite" aria-atomic="true"></div>
+    
+    <div class="board" id="board" role="grid" aria-label="Tabuleiro do jogo - 6 linhas e 5 colunas"></div>
+    
+    <div class="keyboard" id="keyboard" role="group" aria-label="Teclado virtual"></div>
+    
+    <div class="hint-section">
+      <button class="hint-btn" id="hintBtn" aria-describedby="hintInfo">
+        💡 Usar dica (-1 tentativa)
+      </button>
+      <div class="hint-info" id="hintInfo">Revela uma letra na posição correta</div>
+    </div>
+  </main>
+
+  <!-- Modal de Estatísticas -->
+  <div class="modal" id="statsModal" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="modal-content" role="document">
+      <button class="modal-close" id="closeStats" aria-label="Fechar estatísticas">×</button>
+      <h2 id="statsTitle">Estatísticas</h2>
+      <p style="text-align: center; color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;" id="statsModeLabel">Modo Diário</p>
+      
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-number" id="statPlayed">0</div>
+          <div class="stat-label">Jogadas</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" id="statWon">0</div>
+          <div class="stat-label">Vitórias</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" id="statPct">0</div>
+          <div class="stat-label">% Vitória</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" id="statStreak">0</div>
+          <div class="stat-label">Sequência</div>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="color: var(--text-secondary); font-size: 13px;">Maior sequência: </span>
+        <strong style="color: var(--brand-cyan);" id="statMaxStreak">0</strong>
+      </div>
+      
+      <h3 style="margin: 20px 0 12px; font-size: 16px; text-align: center;">Distribuição de tentativas</h3>
+      <div class="distribution" id="distribution" aria-label="Distribuição de tentativas por número"></div>
+    </div>
+  </div>
+
+  <!-- Modal de Fim de Jogo -->
+  <div class="modal" id="endModal" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+    <div class="modal-content end-content" role="document">
+      <button class="modal-close" id="closeEnd" aria-label="Fechar">×</button>
+      <h2 class="end-title" id="endTitle">🎉 Parabéns!</h2>
+      <p class="end-message" id="endMessage">Você acertou!</p>
+      <div class="end-solution" id="endSolution" aria-label="Palavra correta">CASA</div>
+      <div class="end-actions">
+        <button class="btn-primary" id="newGameBtn" style="display: none;">Jogar Novamente</button>
+        <p class="tomorrow-msg" id="tomorrowMsg" style="display: none;">Volte amanhã para o novo desafio diário!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/words.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

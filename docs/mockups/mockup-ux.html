@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caça-palavras — Protótipo 1 — UX Design</title>
+  <style>
+    /* 
+    DECISÕES DE UX:
+    1. Hierarquia: Tabuleiro > Teclado > Ações secundárias. Elementos críticos primeiro.
+    2. Mobile-first: Teclado fixo no rodapé, zonas de toque >= 44px.
+    3. Feedback imediato: Mensagens inline (toasts), estado visual claro.
+    4. Fluxo minimal: Modo seletor sempre visível, dica separada, menos cliques.
+    */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a1b;
+      --border: #d3d6da;
+      --correct: #6aaa64;
+      --present: #c9b458;
+      --absent: #787c7e;
+      --key: #d3d6da;
+      --key-text: #1a1a1b;
+      --focus: #4a90e2;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .badge {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      background: #4a90e2;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    h1 { font-size: 28px; font-weight: 700; letter-spacing: 0.01em; }
+    .mode-select {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .mode-btn {
+      padding: 8px 16px;
+      border: none;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .mode-btn.active { background: var(--text); color: white; }
+    .mode-btn:hover:not(.active) { background: #f3f3f3; }
+    .mode-btn:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: -2px;
+    }
+    .actions { display: flex; gap: 8px; }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-btn:hover { background: #f3f3f3; }
+    .icon-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      max-width: 500px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .status-bar {
+      width: 100%;
+      text-align: center;
+      min-height: 32px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .toast {
+      display: inline-block;
+      padding: 8px 16px;
+      background: var(--text);
+      color: white;
+      border-radius: 4px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .board {
+      display: grid;
+      grid-template-rows: repeat(6, 1fr);
+      gap: 5px;
+      margin-bottom: 24px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+    }
+    .tile {
+      width: 62px;
+      height: 62px;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 700;
+      text-transform: uppercase;
+      user-select: none;
+    }
+    @media (max-width: 400px) {
+      .tile { width: 56px; height: 56px; font-size: 28px; }
+    }
+    .tile.filled { border-color: #878a8c; animation: pop 0.1s ease; }
+    @keyframes pop { 50% { transform: scale(1.1); } }
+    .tile.correct { background: var(--correct); border-color: var(--correct); color: white; animation: flip 0.5s ease; }
+    .tile.present { background: var(--present); border-color: var(--present); color: white; animation: flip 0.5s ease; }
+    .tile.absent { background: var(--absent); border-color: var(--absent); color: white; animation: flip 0.5s ease; }
+    @keyframes flip {
+      0% { transform: rotateX(0); }
+      50% { transform: rotateX(-90deg); }
+      100% { transform: rotateX(0); }
+    }
+    .tile.shake { animation: shake 0.5s ease; }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+      20%, 40%, 60%, 80% { transform: translateX(4px); }
+    }
+    .keyboard {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: auto;
+    }
+    .keyboard-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+    .key {
+      min-height: 58px;
+      min-width: 44px;
+      flex: 1;
+      max-width: 43px;
+      border: none;
+      background: var(--key);
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+    .key.wide { max-width: 65px; font-size: 11px; }
+    .key:hover { opacity: 0.9; }
+    .key:active { opacity: 0.7; }
+    .key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .key.correct { background: var(--correct); color: white; }
+    .key.present { background: var(--present); color: white; }
+    .key.absent { background: var(--absent); color: white; }
+    .hint-section {
+      margin-top: 16px;
+      text-align: center;
+    }
+    .hint-btn {
+      padding: 10px 20px;
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      min-height: 44px;
+      font-weight: 600;
+    }
+    .hint-btn:hover { background: #f3f3f3; }
+    .hint-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .hint-info { font-size: 12px; color: #666; margin-top: 4px; }
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      max-width: 400px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: none;
+      font-size: 24px;
+      cursor: pointer;
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .modal h2 { margin-bottom: 16px; font-size: 20px; text-align: center; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .stat-box { text-align: center; }
+    .stat-number { font-size: 28px; font-weight: 700; }
+    .stat-label { font-size: 11px; text-transform: uppercase; }
+    .distribution { margin-top: 16px; }
+    .dist-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 13px; }
+    .dist-label { width: 12px; }
+    .dist-bar-bg { flex: 1; background: #f3f3f3; height: 20px; border-radius: 4px; overflow: hidden; }
+    .dist-bar { background: var(--absent); height: 100%; display: flex; align-items: center; padding: 0 6px; color: white; font-weight: 600; font-size: 12px; min-width: 24px; }
+    .dist-bar.filled { background: var(--correct); }
+  </style>
+</head>
+<body>
+  <div class="badge">Protótipo 1 — UX Design</div>
+  
+  <header>
+    <div class="header-group">
+      <h1>Caça-palavras</h1>
+      <div class="mode-select" role="group" aria-label="Modo de jogo">
+        <button class="mode-btn active" data-mode="daily" aria-pressed="true">Diário</button>
+        <button class="mode-btn" data-mode="free" aria-pressed="false">Livre</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="icon-btn" id="hardModeBtn" title="Modo difícil" aria-label="Modo difícil">🔥</button>
+      <button class="icon-btn" id="statsBtn" title="Estatísticas" aria-label="Estatísticas">📊</button>
+      <button class="icon-btn" id="muteBtn" title="Som (placeholder)" aria-label="Som desativado">🔇</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="status-bar" id="statusBar" aria-live="polite" aria-atomic="true"></div>
+    
+    <div class="board" id="board" role="grid" aria-label="Tabuleiro do jogo"></div>
+    
+    <div class="keyboard" id="keyboard" role="group" aria-label="Teclado virtual"></div>
+    
+    <div class="hint-section">
+      <button class="hint-btn" id="hintBtn" aria-describedby="hintInfo">
+        💡 Usar dica (-1 tentativa)
+      </button>
+      <div class="hint-info" id="hintInfo">Revela uma letra na posição correta</div>
+    </div>
+  </main>
+
+  <div class="modal" id="statsModal" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="modal-content">
+      <button class="modal-close" id="closeStats" aria-label="Fechar">×</button>
+      <h2 id="statsTitle">Estatísticas</h2>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-number" id="statPlayed">0</div>
+          <div class="stat-label">Jogadas</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" id="statWon">0</div>
+          <div class="stat-label">Vitórias</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" id="statPct">0</div>
+          <div class="stat-label">% Vitória</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" id="statStreak">0</div>
+          <div class="stat-label">Sequência</div>
+        </div>
+      </div>
+      <h3 style="margin: 16px 0 8px; font-size: 16px;">Distribuição de tentativas</h3>
+      <div class="distribution" id="distribution"></div>
+    </div>
+  </div>
+
+  <script>
+    // DECISÃO UX: Palavras de teste para demonstração jogável
+    const VALID_WORDS = ['CASA','MESA','LIVRO','GATO','CACHO','TERRA','MARTE','FORTE','BRACO','PEDRA'];
+    const ANSWERS = ['CASA','MESA','LIVRO','GATO','TERRA'];
+    
+    let solution = ANSWERS[Math.floor(Math.random()*ANSWERS.length)];
+    let currentRow = 0;
+    let currentTile = 0;
+    let gameOver = false;
+    let hardMode = false;
+    let guesses = Array(6).fill().map(() => Array(5).fill(''));
+    let stats = { played: 0, won: 0, streak: 0, maxStreak: 0, dist: [0,0,0,0,0,0] };
+    
+    // UI
+    const boardEl = document.getElementById('board');
+    const keyboardEl = document.getElementById('keyboard');
+    const statusBar = document.getElementById('statusBar');
+    const hintBtn = document.getElementById('hintBtn');
+    const hardModeBtn = document.getElementById('hardModeBtn');
+    const statsBtn = document.getElementById('statsBtn');
+    const statsModal = document.getElementById('statsModal');
+    const closeStats = document.getElementById('closeStats');
+    const modeBtns = document.querySelectorAll('.mode-btn');
+    
+    // Criar tabuleiro
+    for (let r = 0; r < 6; r++) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.setAttribute('role', 'row');
+      for (let c = 0; c < 5; c++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.setAttribute('role', 'gridcell');
+        tile.setAttribute('aria-label', `Linha ${r+1}, coluna ${c+1}`);
+        row.appendChild(tile);
+      }
+      boardEl.appendChild(row);
+    }
+    
+    // Criar teclado
+    const keys = [
+      ['Q','W','E','R','T','Y','U','I','O','P'],
+      ['A','S','D','F','G','H','J','K','L'],
+      ['ENTER','Z','X','C','V','B','N','M','BACK']
+    ];
+    keys.forEach(rowKeys => {
+      const row = document.createElement('div');
+      row.className = 'keyboard-row';
+      rowKeys.forEach(key => {
+        const btn = document.createElement('button');
+        btn.className = 'key' + (key === 'ENTER' || key === 'BACK' ? ' wide' : '');
+        btn.textContent = key === 'BACK' ? '←' : key;
+        btn.dataset.key = key;
+        btn.setAttribute('aria-label', key === 'BACK' ? 'Apagar' : key === 'ENTER' ? 'Enviar' : key);
+        btn.onclick = () => handleKey(key);
+        row.appendChild(btn);
+      });
+      keyboardEl.appendChild(row);
+    });
+    
+    function showToast(msg) {
+      statusBar.innerHTML = `<span class="toast">${msg}</span>`;
+      setTimeout(() => { if (!gameOver) statusBar.innerHTML = ''; }, 1500);
+    }
+    
+    function handleKey(key) {
+      if (gameOver) return;
+      if (key === 'BACK') {
+        if (currentTile > 0) {
+          currentTile--;
+          guesses[currentRow][currentTile] = '';
+          updateTile();
+        }
+        return;
+      }
+      if (key === 'ENTER') {
+        if (currentTile !== 5) { showToast('Palavra muito curta'); shakeRow(); return; }
+        const guess = guesses[currentRow].join('');
+        if (!VALID_WORDS.includes(guess)) { showToast('Palavra não encontrada'); shakeRow(); return; }
+        checkGuess();
+        return;
+      }
+      if (currentTile < 5 && /^[A-Z]$/.test(key)) {
+        guesses[currentRow][currentTile] = key;
+        currentTile++;
+        updateTile();
+      }
+    }
+    
+    function updateTile() {
+      const row = boardEl.children[currentRow];
+      for (let c = 0; c < 5; c++) {
+        const tile = row.children[c];
+        tile.textContent = guesses[currentRow][c];
+        tile.classList.toggle('filled', guesses[currentRow][c] !== '');
+      }
+    }
+    
+    function shakeRow() {
+      const row = boardEl.children[currentRow];
+      row.querySelectorAll('.tile').forEach(t => {
+        t.classList.add('shake');
+        setTimeout(() => t.classList.remove('shake'), 500);
+      });
+    }
+    
+    function checkGuess() {
+      const row = boardEl.children[currentRow];
+      const guess = guesses[currentRow].join('');
+      const solutionArr = solution.split('');
+      const guessArr = guess.split('');
+      const result = Array(5).fill('absent');
+      const solutionCopy = [...solutionArr];
+      
+      // Verdes primeiro
+      for (let i = 0; i < 5; i++) {
+        if (guessArr[i] === solutionArr[i]) {
+          result[i] = 'correct';
+          solutionCopy[i] = null;
+        }
+      }
+      // Amarelos
+      for (let i = 0; i < 5; i++) {
+        if (result[i] === 'absent' && solutionCopy.includes(guessArr[i])) {
+          result[i] = 'present';
+          solutionCopy[solutionCopy.indexOf(guessArr[i])] = null;
+        }
+      }
+      
+      // Animar com delay
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          row.children[i].classList.add(result[i]);
+          const keyBtn = Array.from(document.querySelectorAll('.key')).find(k => k.dataset.key === guessArr[i]);
+          if (keyBtn) {
+            if (!keyBtn.classList.contains('correct')) {
+              keyBtn.classList.remove('present', 'absent');
+              keyBtn.classList.add(result[i]);
+            }
+          }
+        }, i * 300);
+      }
+      
+      setTimeout(() => {
+        if (guess === solution) {
+          gameOver = true;
+          stats.played++; stats.won++; stats.streak++;
+          if (stats.streak > stats.maxStreak) stats.maxStreak = stats.streak;
+          stats.dist[currentRow]++;
+          showToast(`🎉 Parabéns! Acertou em ${currentRow + 1} tentativa(s)`);
+          setTimeout(() => showStats(), 1500);
+        } else if (currentRow === 5) {
+          gameOver = true;
+          stats.played++; stats.streak = 0;
+          showToast(`Fim de jogo! A palavra era ${solution}`);
+          setTimeout(() => showStats(), 1500);
+        } else {
+          currentRow++;
+          currentTile = 0;
+        }
+      }, 1500);
+    }
+    
+    hintBtn.onclick = () => {
+      if (gameOver || currentTile === 0) return;
+      // Revelar primeira letra não revelada como verde (UX: custa tentativa)
+      const row = boardEl.children[currentRow];
+      for (let i = 0; i < 5; i++) {
+        if (guesses[currentRow][i] === '') {
+          guesses[currentRow][i] = solution[i];
+          currentTile++;
+          updateTile();
+          // Marcar como dica (simulado)
+          setTimeout(() => {
+            row.children[i].classList.add('correct');
+            const keyBtn = Array.from(document.querySelectorAll('.key')).find(k => k.dataset.key === solution[i]);
+            if (keyBtn && !keyBtn.classList.contains('correct')) keyBtn.classList.add('correct');
+          }, 100);
+          showToast('Dica usada: +1 tentativa gasta');
+          // Na prática, isso avançaria a tentativa - simplificado para demo
+          return;
+        }
+      }
+    };
+    
+    hardModeBtn.onclick = () => {
+      hardMode = !hardMode;
+      hardModeBtn.style.background = hardMode ? '#ffeaa7' : 'white';
+      showToast(hardMode ? 'Modo difícil ativado' : 'Modo difícil desativado');
+    };
+    
+    modeBtns.forEach(btn => {
+      btn.onclick = () => {
+        modeBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed','true');
+        showToast(btn.dataset.mode === 'daily' ? 'Modo Desafio Diário' : 'Modo Livre');
+      };
+    });
+    
+    statsBtn.onclick = showStats;
+    closeStats.onclick = () => statsModal.classList.remove('active');
+    statsModal.onclick = (e) => { if (e.target === statsModal) statsModal.classList.remove('active'); };
+    
+    function showStats() {
+      document.getElementById('statPlayed').textContent = stats.played;
+      document.getElementById('statWon').textContent = stats.won;
+      document.getElementById('statPct').textContent = stats.played ? Math.round((stats.won/stats.played)*100) : 0;
+      document.getElementById('statStreak').textContent = stats.streak;
+      
+      const distEl = document.getElementById('distribution');
+      distEl.innerHTML = '';
+      const maxDist = Math.max(1, ...stats.dist);
+      for (let i = 0; i < 6; i++) {
+        const row = document.createElement('div');
+        row.className = 'dist-row';
+        row.innerHTML = `
+          <div class="dist-label">${i+1}</div>
+          <div class="dist-bar-bg">
+            <div class="dist-bar ${stats.dist[i] ? 'filled' : ''}" style="width: ${Math.max(10, (stats.dist[i]/maxDist)*100)}%">
+              ${stats.dist[i]}
+            </div>
+          </div>
+        `;
+        distEl.appendChild(row);
+      }
+      statsModal.classList.add('active');
+    }
+    
+    // Teclado físico
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleKey('ENTER');
+      else if (e.key === 'Backspace') handleKey('BACK');
+      else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
+    });
+    
+    showToast('Bem-vindo ao Caça-palavras!');
+  </script>
+</body>
+</html>

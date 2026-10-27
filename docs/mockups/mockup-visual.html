@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Caça-palavras — Protótipo 3 · Design Visual</title>
+
+<!--
+================================================================================
+  PROTÓTIPO 3 — DESIGN VISUAL · "CAÇA-PALAVRAS: EXPEDIÇÃO NOTURNA"
+  Arquivo autocontido (HTML + CSS + JS embutidos, zero dependências externas,
+  funciona 100% offline). Sons sintetizados via Web Audio API.
+================================================================================
+
+  1) CONCEITO VISUAL — "Expedição Noturna"
+  ----------------------------------------
+  O nome do jogo é "CAÇA-palavras", então a identidade adota a metáfora da
+  CAÇA/EXPEDIÇÃO: o tabuleiro é uma tela de RADAR de expedição noturna e o
+  jogador é um explorador buscando a palavra escondida na escuridão.
+  • Ciano de "lupa/radar" (crosshair no logo) = marca, ferramentas e chrome.
+  • Fundo azul-noite profundo com brilhos suaves (aurora noturna) — os jogos
+    de palavras são jogados majoritariamente à noite; tema escuro é o primário
+    por conforto visual (OLED/low-light) e para fazer as cores de gameplay
+    (verde/amarelo) "brilharem" como sinalização no escuro.
+  • Tema claro alternativo = "Caderno de Campo" (papel creme do explorador):
+    mesma linguagem, outra atmosfera — prova de que o sistema de design é flexível.
+
+  2) PALETA (tokens CSS / variáveis)
+  ----------------------------------
+  ESCURO (primário — Expedição Noturna)
+    --bg          #0D141B  azul-noite profundo (fundo)
+    --bg-glow     #14232F  brilho radial de fundo (aurora)
+    --surface     #16222E  cartões/painéis
+    --surface-2   #1C2B38  teclas e células preenchidas
+    --border      #27384A  bordas suaves
+    --border-str  #33475C  bordas de célula vazia
+    --text        #E6EEF4  texto principal
+    --text-dim    #8FA5B6  texto secundário
+    --brand       #4FC3D9  CIANO RADAR (marca/UI — nunca usado em gameplay)
+    --correct     #4AA96C  VERDE esmeralda — letra correta na posição
+    --present     #D9A13B  ÂMBAR de lanterna — letra existe, posição errada
+    --absent      #37454F  ARDÓSIA — letra ausente
+    --danger      #E2634F  erros/alertas
+  CLARO (alternativo — Caderno de Campo)
+    --bg #F3EFE4 · --surface #FBF8F1 · --border #D9D0BD · --text #22303C
+    --brand #0F7C90 · --correct #3D8F5C · --present #C78A1F · --absent #B9B2A4
+
+  Decisão semântica importante: o CIANO da marca é deliberadamente DISTINTO
+  de verde e âmbar para que a cor da marca nunca seja confundida com feedback
+  de jogo. Verde/ âmbar/ cinza pertencem exclusivamente à gameplay.
+
+  3) TIPOGRAFIA (sem CDN — fontes do sistema, offline-safe)
+  ---------------------------------------------------------
+  • Display/Marca: Georgia / serif (ar de "caderno de campo", caderno do
+    explorador) — títulos e logotipo.
+  • Interface/Gameplay: system-ui / Segoe UI / Roboto — sans geométrica,
+    altíssima legibilidade. Letras do tabuleiro em peso 800, caixa alta,
+    tracking generoso e células grandes (clamp responsivo) para leitura
+    imediata do feedback.
+
+  4) MICROINTERAÇÕES
+  ------------------
+  • Flip 3D (rotateX com perspective) escalonado de 320 ms por célula;
+    cor troca exatamente no ponto médio da rotação (efeito "virada real").
+  • Shake horizontal para palavra inválida + toast de aviso.
+  • Bounce vertical + glow na linha vencedora + confete de "faíscas".
+  • Pop suave ao digitar; hover/active em todas as teclas; curvas
+    cubic-bezier suaves; foco visível (acessibilidade).
+  • prefers-reduced-motion respeitado.
+
+  5) SONS — Web Audio API (zero arquivos)
+  ---------------------------------------
+  Clique de tecla (triângulo curto), flip (sweep), revejar verde (ping duplo),
+  erro (quadrada grave), dica (sparkle), vitória (arpejo + brilho),
+  derrota (descida). Botão de mute persistente.
+
+  6) LAYOUT
+  ---------
+  Grid central de no máximo 520px, ritmo de espaçamento em múltiplos de 4px,
+  cantos 10–18px, sombras em camadas (duas sombras suaves), badge flutuante
+  "Protótipo 3 — Design Visual" no topo.
+================================================================================
+-->
+
+<style>
+/* ==========================================================================
+   0. TOKENS DE DESIGN (paleta semântica)
+   ========================================================================== */
+:root{
+  /* modo escuro — Expedição Noturna (primário) */
+  --bg:#0d141b;
+  --bg-glow-a:rgba(79,195,217,.10);
+  --bg-glow-b:rgba(217,161,59,.06);
+  --surface:#16222e;
+  --surface-2:#1c2b38;
+  --surface-3:#223343;
+  --border:#27384a;
+  --border-strong:#33475c;
+  --text:#e6eef4;
+  --text-dim:#8fa5b6;
+  --brand:#4fc3d9;
+  --brand-soft:rgba(79,195,217,.14);
+  --brand-glow:rgba(79,195,217,.35);
+  --correct:#4aa96c;
+  --present:#d9a13b;
+  --absent:#37454f;
+  --danger:#e2634f;
+  --shadow-1:0 6px 18px rgba(0,0,0,.35);
+  --shadow-2:0 2px 6px rgba(0,0,0,.25);
+  --overlay:rgba(5,10,15,.62);
+  --tile-empty-border:#33475c;
+
+  /* geometria compartilhada */
+  --cell:clamp(48px,12.5vw,62px);
+  --gap:clamp(5px,1.6vw,7px);
+  --r-sm:8px;
+  --r-md:12px;
+  --r-lg:18px;
+  --ease:cubic-bezier(.22,.9,.28,1);
+
+  --font-display:Georgia,"Times New Roman",serif;
+  --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+html[data-theme="light"]{
+  /* modo claro — Caderno de Campo */
+  --bg:#f3efe4;
+  --bg-glow-a:rgba(15,124,144,.09);
+  --bg-glow-b:rgba(199,138,31,.08);
+  --surface:#fbf8f1;
+  --surface-2:#efe9db;
+  --surface-3:#e7dfcd;
+  --border:#ddd4c0;
+  --border-strong:#c9bfa8;
+  --text:#22303c;
+  --text-dim:#6b7a86;
+  --brand:#0f7c90;
+  --brand-soft:rgba(15,124,144,.12);
+  --brand-glow:rgba(15,124,144,.25);
+  --correct:#3d8f5c;
+  --present:#c78a1f;
+  --absent:#b9b2a4;
+  --danger:#c4503e;
+  --shadow-1:0 6px 18px rgba(60,50,30,.14);
+  --shadow-2:0 2px 6px rgba(60,50,30,.10);
+  --overlay:rgba(35,30,20,.45);
+  --tile-empty-border:#c9bfa8;
+}
+
+/* ==========================================================================
+   1. RESET & BASE
+   ========================================================================== */
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--font-ui);
+  background:var(--bg);
+  color:var(--text);
+  min-height:100dvh;
+  display:flex;flex-direction:column;align-items:center;
+  padding:44px 12px 24px;
+  transition:background .35s var(--ease),color .35s var(--ease);
+  overflow-x:hidden;
+}
+/* aurora noturna de fundo — brilhos radiais suaves */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(680px 420px at 15% -5%, var(--bg-glow-a), transparent 65%),
+    radial-gradient(560px 380px at 90% 110%, var(--bg-glow-b), transparent 62%);
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,[role="tab"]:focus-visible,input:focus-visible{
+  outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;
+}
+.hidden{display:none !important}
+
+/* ==========================================================================
+   2. BADGE FLUTUANTE DO PROTÓTIPO
+   ========================================================================== */
+.proto-badge{
+  position:fixed;top:10px;left:50%;transform:translateX(-50%);
+  z-index:90;display:flex;align-items:center;gap:7px;
+  padding:5px 13px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:var(--shadow-2);
+  font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-dim);white-space:nowrap;
+}
+.proto-badge .dot{
+  width:7px;height:7px;border-radius:50%;background:var(--brand);
+  box-shadow:0 0 8px var(--brand-glow);animation:pulse 2.2s infinite;
+}
+.proto-badge b{color:var(--brand);font-weight:800}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ==========================================================================
+   3. CABEÇALHO
+   ========================================================================== */
+.app{width:100%;max-width:520px;display:flex;flex-direction:column;align-items:center;gap:14px}
+header{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 4px 12px;border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand .logo{
+  color:var(--brand);flex:none;
+  filter:drop-shadow(0 0 6px var(--brand-glow));
+}
+.brand h1{
+  font-family:var(--font-display);
+  font-size:clamp(19px,5vw,24px);font-weight:700;letter-spacing:.2px;
+  line-height:1.05;white-space:nowrap;
+}
+.brand .tagline{
+  display:block;font-family:var(--font-ui);
+  font-size:9.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--brand);margin-top:3px;
+}
+.head-actions{display:flex;gap:6px;flex:none}
+.icon-btn{
+  width:38px;height:38px;border-radius:var(--r-md);
+  display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text-dim);
+  transition:transform .18s var(--ease),color .18s,border-color .18s,background .18s;
+}
+.icon-btn:hover{color:var(--brand);border-color:var(--brand);transform:translateY(-2px)}
+.icon-btn:active{transform:translateY(0) scale(.92)}
+/* ícones com dois estados (sol/lua, som on/off) */
+.icon-btn .when-off{display:none}
+.icon-btn[data-off="true"] .when-on{display:none}
+.icon-btn[data-off="true"] .when-off{display:block}
+
+/* ==========================================================================
+   4. BARRA DE MODOS + FERRAMENTAS
+   ========================================================================== */
+.mode-switch{
+  display:flex;gap:4px;padding:4px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--border);
+}
+.mode-switch [role="tab"]{
+  padding:7px 18px;border-radius:999px;
+  font-size:13px;font-weight:700;color:var(--text-dim);
+  display:flex;align-items:center;gap:7px;
+  transition:background .25s var(--ease),color .25s,box-shadow .25s;
+}
+.mode-switch [role="tab"]:hover{color:var(--text)}
+.mode-switch [role="tab"][aria-selected="true"]{
+  background:var(--brand-soft);color:var(--brand);
+  box-shadow:inset 0 0 0 1px var(--brand-glow);
+}
+.mode-switch .pip{font-size:11px}
+
+.toolbar{
+  width:100%;display:flex;align-items:center;justify-content:center;
+  gap:10px;flex-wrap:wrap;
+}
+.hint-btn{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 16px;border-radius:999px;
+  background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  border:1px solid var(--border-strong);
+  font-size:13px;font-weight:700;color:var(--text);
+  box-shadow:var(--shadow-2);
+  transition:transform .18s var(--ease),border-color .2s,box-shadow .2s,opacity .2s;
+}
+.hint-btn small{font-size:10.5px;font-weight:600;color:var(--present);letter-spacing:.02em}
+.hint-btn:hover:not(:disabled){border-color:var(--present);transform:translateY(-2px);box-shadow:0 6px 16px rgba(217,161,59,.18)}
+.hint-btn:active:not(:disabled){transform:translateY(0) scale(.97)}
+.hint-btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* switch de modo difícil */
+.hard-switch{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:600;color:var(--text-dim);cursor:pointer;user-select:none}
+.hard-switch input{position:absolute;opacity:0;width:0;height:0}
+.hard-switch .track{
+  width:40px;height:22px;border-radius:999px;flex:none;position:relative;
+  background:var(--surface-3);border:1px solid var(--border-strong);
+  transition:background .25s var(--ease),border-color .25s;
+}
+.hard-switch .track::after{
+  content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:var(--text-dim);transition:transform .25s var(--ease),background .25s;
+}
+.hard-switch input:checked + .track{background:var(--brand-soft);border-color:var(--brand)}
+.hard-switch input:checked + .track::after{transform:translateX(18px);background:var(--brand)}
+.hard-switch input:focus-visible + .track{outline:2px solid var(--brand);outline-offset:2px}
+.hard-switch:hover{color:var(--text)}
+
+/* ==========================================================================
+   5. TABULEIRO (radar 6×5)
+   ========================================================================== */
+.board{
+  display:grid;grid-template-columns:repeat(5,var(--cell));
+  gap:var(--gap);perspective:900px;
+  transition:filter .3s;
+}
+.tile{
+  width:var(--cell);height:var(--cell);
+  display:grid;place-items:center;
+  border:2px solid var(--tile-empty-border);border-radius:10px;
+  background:transparent;color:var(--text);
+  font-size:calc(var(--cell)*.54);font-weight:800;line-height:1;
+  text-transform:uppercase;user-select:none;
+  transform-style:preserve-3d;
+  transition:border-color .15s,background-color .18s,color .18s,box-shadow .3s;
+}
+.tile.typed{border-color:var(--border-strong);background:var(--surface-2)}
+.tile.correct{background:var(--correct);border-color:var(--correct);color:#fff}
+.tile.present{background:var(--present);border-color:var(--present);color:#fff}
+.tile.absent {background:var(--absent); border-color:var(--absent); color:#fff}
+html[data-theme="light"] .tile.absent{color:#4a4436}
+/* linha consumida pela dica: células vazias com contorno tracejado */
+.tile.hint-empty{border-style:dashed;border-color:var(--correct);opacity:.55}
+
+/* animações do tabuleiro */
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(-90deg)}100%{transform:rotateX(0)}}
+.tile.flip{animation:flip .5s var(--ease)}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
+.tile.pop{animation:pop .13s ease-out}
+@keyframes shakeX{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+.board.shake{animation:shakeX .55s cubic-bezier(.36,.07,.19,.97)}
+@keyframes bounceUp{0%{transform:translateY(0)}30%{transform:translateY(-14px)}55%{transform:translateY(0)}75%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+.tile.bounce{animation:bounceUp .6s var(--ease)}
+.board.won .tile.correct{box-shadow:0 0 22px var(--brand-glow),0 0 4px var(--correct)}
+.board.locked{pointer-events:none}
+
+.subtitle{
+  font-size:12px;color:var(--text-dim);text-align:center;line-height:1.5;
+  letter-spacing:.02em;
+}
+.subtitle b{color:var(--brand);font-weight:700}
+
+/* ==========================================================================
+   6. TECLADO VIRTUAL
+   ========================================================================== */
+.keyboard{width:100%;max-width:500px;user-select:none;padding-bottom:6px}
+.kb-row{display:flex;justify-content:center;gap:6px;margin-bottom:8px}
+.kb-row:last-child{margin-bottom:0}
+.key{
+  flex:1 1 0;min-width:0;height:clamp(50px,13vw,58px);
+  border-radius:var(--r-sm);
+  background:var(--surface-2);border:1px solid var(--border);
+  font-size:clamp(13px,3.6vw,15px);font-weight:700;color:var(--text);
+  display:grid;place-items:center;
+  transition:transform .12s var(--ease),background .3s,color .3s,border-color .2s,box-shadow .2s;
+  box-shadow:0 2px 0 rgba(0,0,0,.18);
+}
+.key:hover{background:var(--surface-3);border-color:var(--border-strong)}
+.key:active{transform:translateY(2px) scale(.96);box-shadow:none}
+.key.wide{flex:1.6 1 0;font-size:clamp(10px,2.8vw,11.5px);letter-spacing:.04em;text-transform:uppercase;background:var(--surface-3);color:var(--text-dim)}
+.key.wide:hover{color:var(--text)}
+.key.correct{background:var(--correct);border-color:var(--correct);color:#fff;box-shadow:none}
+.key.present{background:var(--present);border-color:var(--present);color:#fff;box-shadow:none}
+.key.absent {background:var(--absent); border-color:var(--absent); color:#fff;box-shadow:none;opacity:.75}
+html[data-theme="light"] .key.absent{color:#4a4436}
+
+/* ==========================================================================
+   7. TOAST + OVERLAYS (estatísticas / fim de jogo)
+   ========================================================================== */
+.toast{
+  position:fixed;top:52px;left:50%;
+  padding:11px 20px;border-radius:var(--r-md);
+  background:var(--surface);border:1px solid var(--border-strong);
+  color:var(--text);font-size:13.5px;font-weight:700;
+  box-shadow:var(--shadow-1);z-index:80;white-space:nowrap;
+  opacity:0;pointer-events:none;
+  transform:translate(-50%,-14px);
+  transition:opacity .22s var(--ease),transform .22s var(--ease);
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.warn{border-color:var(--danger);color:var(--danger)}
+.toast.hint{border-color:var(--present);color:var(--present)}
+
+.overlay{
+  position:fixed;inset:0;z-index:70;
+  background:var(--overlay);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  display:grid;place-items:center;padding:20px;
+  opacity:0;pointer-events:none;transition:opacity .3s var(--ease);
+}
+.overlay.open{opacity:1;pointer-events:auto}
+.panel{
+  width:100%;max-width:400px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-1);
+  padding:24px 24px 22px;text-align:center;
+  transform:translateY(16px) scale(.96);
+  transition:transform .32s var(--ease);
+  max-height:86dvh;overflow-y:auto;
+}
+.overlay.open .panel{transform:translateY(0) scale(1)}
+.panel h2{
+  font-family:var(--font-display);font-size:22px;margin-bottom:2px;
+}
+.panel .panel-sub{font-size:12px;color:var(--text-dim);margin-bottom:16px}
+.panel .close-x{
+  position:absolute;right:14px;top:12px;font-size:20px;color:var(--text-dim);
+  width:34px;height:34px;border-radius:var(--r-sm);
+}
+.panel .close-x:hover{color:var(--danger);background:var(--surface-2)}
+.panel-wrap{position:relative;width:100%;max-width:400px;display:grid;place-items:center}
+
+/* estatísticas */
+.stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:20px}
+.stat-grid .stat{display:flex;flex-direction:column;gap:3px}
+.stat-grid .num{font-size:clamp(20px,5.5vw,26px);font-weight:800;line-height:1}
+.stat-grid .lbl{font-size:10px;color:var(--text-dim);line-height:1.2}
+.dist-title{font-size:12px;font-weight:700;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.dist{display:flex;flex-direction:column;gap:5px}
+.dist .rowbar{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700}
+.dist .rowbar .idx{width:10px;color:var(--text-dim);text-align:center}
+.dist .bar{
+  height:20px;border-radius:4px;background:var(--absent);color:#fff;
+  display:flex;align-items:center;justify-content:flex-end;padding:0 7px;
+  min-width:22px;font-size:11.5px;
+  transition:width .6s var(--ease);
+}
+.dist .rowbar.best .bar{background:var(--correct)}
+
+/* fim de jogo */
+.reveal-word{display:flex;gap:6px;justify-content:center;margin:14px 0 10px}
+.reveal-word span{
+  width:clamp(40px,10vw,50px);height:clamp(40px,10vw,50px);
+  display:grid;place-items:center;border-radius:9px;
+  background:var(--correct);color:#fff;
+  font-size:clamp(20px,5vw,25px);font-weight:800;text-transform:uppercase;
+  animation:revealIn .45s var(--ease) backwards;
+}
+@keyframes revealIn{from{transform:rotateX(-90deg) scale(.6);opacity:0}to{transform:none;opacity:1}}
+.result-line{font-size:14px;color:var(--text-dim);margin-bottom:6px}
+.result-line b{color:var(--text)}
+.mini-stats{display:flex;justify-content:center;gap:22px;margin:12px 0 18px}
+.mini-stats .stat{display:flex;flex-direction:column}
+.mini-stats .num{font-size:20px;font-weight:800}
+.mini-stats .lbl{font-size:10px;color:var(--text-dim)}
+.panel-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.btn{
+  padding:11px 22px;border-radius:var(--r-md);
+  font-size:13.5px;font-weight:800;letter-spacing:.02em;
+  transition:transform .18s var(--ease),box-shadow .2s,background .2s;
+}
+.btn.primary{background:var(--brand);color:#04222a;box-shadow:0 6px 18px var(--brand-glow)}
+.btn.primary:hover{transform:translateY(-2px)}
+.btn.ghost{background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text-dim)}
+.btn.ghost:hover{color:var(--text);border-color:var(--brand);transform:translateY(-2px)}
+.btn:active{transform:translateY(0) scale(.97)}
+
+/* faíscas de comemoração */
+.sparkles{position:fixed;inset:0;pointer-events:none;z-index:85;overflow:hidden}
+.sparkle{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.1}}
+
+/* ==========================================================================
+   8. RESPONSIVO & ACESSIBILIDADE
+   ========================================================================== */
+@media (max-width:380px){
+  .toolbar{gap:8px}
+  .mode-switch [role="tab"]{padding:7px 13px}
+}
+@media (max-height:720px){
+  body{padding-top:40px;gap:10px}
+  .app{gap:10px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+
+<body>
+
+<!-- badge flutuante do protótipo -->
+<div class="proto-badge" aria-hidden="true"><span class="dot"></span>Protótipo&nbsp;<b>3</b>&nbsp;·&nbsp;Design&nbsp;Visual</div>
+
+<div class="app">
+
+  <!-- ===================== CABEÇALHO ===================== -->
+  <header>
+    <div class="brand">
+      <!-- logo: lupa com retícula de mira = "caça" -->
+      <svg class="logo" width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+        <circle cx="13.5" cy="13.5" r="9.5"/>
+        <path d="M20.8 20.8 L28.2 28.2"/>
+        <path d="M13.5 8.6 v9.8 M8.6 13.5 h9.8" stroke-width="1.6" opacity=".55"/>
+      </svg>
+      <div>
+        <h1>Caça-palavras</h1>
+        <span class="tagline">Expedição Noturna</span>
+      </div>
+    </div>
+
+    <div class="head-actions">
+      <!-- estatísticas -->
+      <button class="icon-btn" id="statsBtn" aria-label="Estatísticas" title="Estatísticas">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">
+          <rect x="1" y="9" width="3.6" height="8" rx="1.2"/>
+          <rect x="7.2" y="4" width="3.6" height="13" rx="1.2"/>
+          <rect x="13.4" y="1" width="3.6" height="16" rx="1.2"/>
+        </svg>
+      </button>
+      <!-- tema escuro/claro -->
+      <button class="icon-btn" id="themeBtn" aria-label="Alternar tema claro/escuro" title="Alternar tema">
+        <svg class="when-on" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M16.5 12.2A7 7 0 0 1 7.8 3.5 7 7 0 1 0 16.5 12.2z"/>
+        </svg>
+        <svg class="when-off" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="10" cy="10" r="4"/>
+          <path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6l1.4 1.4M15 15l1.4 1.4M16.4 3.6L15 5M5 15l-1.4 1.4"/>
+        </svg>
+      </button>
+      <!-- som on/off -->
+      <button class="icon-btn" id="muteBtn" aria-label="Ativar/desativar som" title="Som">
+        <svg class="when-on" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7.5v5h3.2L11 16.5v-13L6.2 7.5H3z" fill="currentColor" stroke="none"/>
+          <path d="M13.5 7a4.2 4.2 0 0 1 0 6M16 4.8a7.6 7.6 0 0 1 0 10.4"/>
+        </svg>
+        <svg class="when-off" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7.5v5h3.2L11 16.5v-13L6.2 7.5H3z" fill="currentColor" stroke="none"/>
+          <path d="M13.5 7.5l5 5M18.5 7.5l-5 5"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===================== MODOS DE JOGO ===================== -->
+  <div class="mode-switch" role="tablist" aria-label="Modo de jogo">
+    <button role="tab" id="tabDaily"  aria-selected="true"  data-mode="daily"><span class="pip">📅</span>Diário</button>
+    <button role="tab" id="tabFree"   aria-selected="false" data-mode="free"><span class="pip">🎯</span>Livre</button>
+  </div>
+
+  <!-- ===================== FERRAMENTAS: DICA + MODO DIFÍCIL ===================== -->
+  <div class="toolbar">
+    <button class="hint-btn" id="hintBtn" title="Revela uma letra correta — custa 1 tentativa">
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M10 2a5.5 5.5 0 0 1 3.2 10c-.6.5-.9 1-1 1.7l-.2 1.3h-4l-.2-1.3c-.1-.7-.4-1.2-1-1.7A5.5 5.5 0 0 1 10 2z"/>
+        <path d="M8.2 17.2h3.6"/>
+      </svg>
+      Dica <small>(−1 tentativa)</small>
+    </button>
+
+    <label class="hard-switch" title="Próximos chutes devem respeitar as dicas verdes e amarelas">
+      <input type="checkbox" id="hardToggle">
+      <span class="track"></span>
+      Modo difícil
+    </label>
+  </div>
+
+  <!-- ===================== TABULEIRO ===================== -->
+  <div class="board" id="board" role="grid" aria-label="Tabuleiro 6 por 5"></div>
+
+  <p class="subtitle" id="subtitle"></p>
+
+  <!-- ===================== TECLADO VIRTUAL ===================== -->
+  <div class="keyboard" id="keyboard" aria-label="Teclado"></div>
+</div>
+
+<!-- ===================== TOAST ===================== -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ===================== MODAL: ESTATÍSTICAS ===================== -->
+<div class="overlay" id="statsOverlay" aria-hidden="true">
+  <div class="panel-wrap">
+    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="statsTitle" style="text-align:left">
+      <button class="close-x" data-close="statsOverlay" aria-label="Fechar">✕</button>
+      <h2 id="statsTitle" style="text-align:center">Estatísticas</h2>
+      <p class="panel-sub" id="statsMode">Desafio diário</p>
+
+      <div class="stat-grid">
+        <div class="stat"><span class="num" id="stPlayed">0</span><span class="lbl">Jogadas</span></div>
+        <div class="stat"><span class="num" id="stWins">0</span><span class="lbl">Vitórias</span></div>
+        <div class="stat"><span class="num" id="stPct">0%</span><span class="lbl">% Vitória</span></div>
+        <div class="stat"><span class="num" id="stStreak">0</span><span class="lbl">Sequência</span></div>
+        <div class="stat"><span class="num" id="stMax">0</span><span class="lbl">Maior seq.</span></div>
+      </div>
+
+      <p class="dist-title" style="text-align:center">Distribuição de tentativas</p>
+      <div class="dist" id="dist"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: FIM DE JOGO ===================== -->
+<div class="overlay" id="endOverlay" aria-hidden="true">
+  <div class="panel-wrap">
+    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+      <button class="close-x" data-close="endOverlay" aria-label="Fechar">✕</button>
+      <h2 id="endTitle">—</h2>
+      <p class="panel-sub" id="endSub">—</p>
+      <div class="reveal-word" id="revealWord"></div>
+      <p class="result-line" id="resultLine">—</p>
+      <div class="mini-stats">
+        <div class="stat"><span class="num" id="endPlayed">0</span><span class="lbl">Jogadas</span></div>
+        <div class="stat"><span class="num" id="endWins">0</span><span class="lbl">% Vitória</span></div>
+        <div class="stat"><span class="num" id="endStreak">0</span><span class="lbl">Sequência</span></div>
+      </div>
+      <div class="panel-actions">
+        <button class="btn primary" id="endPrimary">Nova partida</button>
+        <button class="btn ghost" id="endSecondary">Ver estatísticas</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- container de faíscas (preenchido via JS na vitória) -->
+<div class="sparkles" id="sparkles" aria-hidden="true"></div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   PROTÓTIPO 3 — LÓGICA DO JOGO (mock: persistência simulada em memória JS,
+   conforme enunciado do protótipo; a versão final usará localStorage)
+   ========================================================================== */
+
+/* ---------- 0. Banco de palavras (5 letras, PT-BR) ---------- */
+const WORDS = [
+  "CASAS","MUNDO","PAPEL","ROSAS","FILME","AMIGO","GRADE","PRATO",
+  "VERDE","TROCA","BEIJO","CANTO","NUVEM","PRAIA","FESTA","LIVRO",
+  "LIMPO","SONHO","BAILE","FAROL","PEDRA","ROSTO","MAGIA"
+];
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZÇ"; // alfabeto aceito pelo teclado físico
+
+/* ---------- 1. Persistência simulada (memória JS) ---------- */
+const Store = {
+  _d:{},
+  get(k,def){ return (k in this._d) ? JSON.parse(JSON.stringify(this._d[k])) : def; },
+  set(k,val){ this._d[k] = JSON.parse(JSON.stringify(val)); }
+};
+const PREFS = Store.get("prefs",{ theme:"dark", muted:false, hard:false });
+const emptyStats = () => ({ played:0, wins:0, dist:[0,0,0,0,0,0], streak:0, maxStreak:0 });
+function getStats(mode){ return Store.get("stats."+mode, emptyStats()); }
+function setStats(mode,s){ Store.set("stats."+mode, s); }
+
+/* ---------- 2. Áudio (Web Audio API — zero arquivos externos) ---------- */
+const Sfx = {
+  ctx:null,
+  _ensure(){
+    try{
+      if(!this.ctx){
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if(!AC) return null;
+        this.ctx = new AC();
+      }
+      if(this.ctx.state === "suspended") this.ctx.resume().catch(()=>{});
+      return this.ctx;
+    }catch(e){ return null; }
+  },
+  /* gera um tom com envelope e opcional deslize de frequência */
+  _tone(freq,{dur=.08,type="triangle",vol=.14,when=0,slideTo=null}={}){
+    if(PREFS.muted) return;
+    const ctx = this._ensure(); if(!ctx) return;
+    try{
+      const t0 = ctx.currentTime + when;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if(slideTo) osc.frequency.linearRampToValueAtTime(slideTo, t0 + dur);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0); osc.stop(t0 + dur + 0.05);
+    }catch(e){ /* silencioso: nunca poluir o console */ }
+  },
+  key(){ this._tone(520,{dur:.045,vol:.055,type:"triangle"}); },
+  flip(){ this._tone(300,{dur:.11,vol:.05,type:"sine",slideTo:470}); },
+  reveal(state){
+    if(state==="correct"){ this._tone(660,{dur:.14,vol:.10}); this._tone(880,{dur:.16,vol:.08,when:.07}); }
+    else if(state==="present"){ this._tone(560,{dur:.10,vol:.07}); }
+  },
+  error(){ this._tone(170,{dur:.13,vol:.12,type:"square",slideTo:120}); },
+  hint(){ this._tone(1318,{dur:.10,vol:.08,type:"sine"}); this._tone(1760,{dur:.16,vol:.06,when:.08}); },
+  win(){
+    [523,659,784,1047].forEach((f,i)=> this._tone(f,{dur:.22,vol:.11,when:i*.11}));
+    this._tone(1568,{dur:.55,vol:.06,when:.5}); // brilho final
+  },
+  lose(){ this._tone(392,{dur:.45,vol:.10,type:"sine",slideTo:245}); this._tone(196,{dur:.5,vol:.06,when:.08,type:"triangle",slideTo:150}); }
+};
+
+/* ---------- 3. Referências de DOM ---------- */
+const $ = id => document.getElementById(id);
+const boardEl = $("board"), kbEl = $("keyboard"), toastEl = $("toast"), subtitleEl = $("subtitle");
+const hintBtn = $("hintBtn"), hardToggle = $("hardToggle");
+const HINT_HTML = hintBtn.innerHTML; // guarda o conteúdo original do botão de dica
+
+/* ---------- 4. Estado do jogo ---------- */
+const ROWS = 6, COLS = 5;
+const state = {
+  mode:"daily",
+  answer:"",
+  row:0,
+  status:"playing",       // playing | won | lost
+  grid:[],                // chute atual por linha
+  results:[],             // "correct" | "present" | "absent" por linha
+  hintedRow:-1,           // linha consumida pela dica
+  hintsUsed:0,
+  kbState:{},             // letra -> estado com maior prioridade
+  busy:false,             // durante animação de flip
+  lastFree:""
+};
+
+/* ---------- 5. Renderização do tabuleiro e teclado ---------- */
+const tiles = [];
+function buildBoard(){
+  boardEl.innerHTML = "";
+  tiles.length = 0;
+  for(let r=0;r<ROWS;r++){
+    const row = [];
+    for(let c=0;c<COLS;c++){
+      const t = document.createElement("div");
+      t.className = "tile";
+      t.setAttribute("role","gridcell");
+      t.setAttribute("aria-label",`linha ${r+1}, coluna ${c+1}`);
+      boardEl.appendChild(t);
+      row.push(t);
+    }
+    tiles.push(row);
+  }
+}
+const KB_ROWS = ["QWERTYUIOP","ASDFGHJKLÇ","±ZXCVBNM⌫"]; // ± = ENTER, ⌫ = apagar
+const keyEls = {};
+function buildKeyboard(){
+  kbEl.innerHTML = "";
+  KB_ROWS.forEach(spec=>{
+    const row = document.createElement("div");
+    row.className = "kb-row";
+    for(const ch of spec){
+      const b = document.createElement("button");
+      b.className = "key";
+      if(ch === "±"){
+        b.classList.add("wide"); b.textContent = "ENTER"; b.dataset.k = "ENTER";
+        b.setAttribute("aria-label","Confirmar tentativa");
+      }else if(ch === "⌫"){
+        b.classList.add("wide"); b.dataset.k = "⌫"; b.setAttribute("aria-label","Apagar letra");
+        b.innerHTML = '<svg width="20" height="14" viewBox="0 0 22 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 1.5h13.5v13H7L1 8l6-6.5z"/><path d="M11 5.5l6 5M17 5.5l-6 5"/></svg>';
+      }else{
+        b.textContent = ch; b.dataset.k = ch; b.setAttribute("aria-label",ch);
+        keyEls[ch] = b;
+      }
+      row.appendChild(b);
+    }
+    kbEl.appendChild(row);
+  });
+}
+
+/* ---------- 6. Feedback de cores (regra do Wordle p/ letras repetidas) ---------- */
+function evaluate(guess, answer){
+  const res = Array(COLS).fill("absent");
+  const pool = answer.split("");
+  for(let i=0;i<COLS;i++){
+    if(guess[i] === answer[i]){ res[i] = "correct"; pool[i] = null; }
+  }
+  for(let i=0;i<COLS;i++){
+    if(res[i] === "correct") continue;
+    const idx = pool.indexOf(guess[i]);
+    if(idx > -1){ res[i] = "present"; pool[idx] = null; }
+  }
+  return res;
+}
+
+/* ---------- 7. UI helpers ---------- */
+let toastTimer = null;
+function toast(msg, kind="", ms=1900){
+  toastEl.textContent = msg;
+  toastEl.className = "toast show " + kind;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ toastEl.className = "toast " + kind; }, ms);
+}
+const wait = ms => new Promise(res=>setTimeout(res,ms));
+const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- 8. Palavra do dia (determinística pela data) ---------- */
+function dateKey(d = new Date()){
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function wordOfDay(){
+  const key = dateKey().split("-").join("");          // AAAAMMDD
+  let hash = 0;
+  for(const ch of key) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return WORDS[hash % WORDS.length];
+}
+function prettyDate(){
+  try{
+    return new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"numeric",month:"long"}).format(new Date());
+  }catch(e){ return dateKey(); }
+}
+
+/* ---------- 9. Início / restauração de partida ---------- */
+function clearBoardUI(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const t = tiles[r][c];
+    t.className = "tile"; t.textContent = "";
+    t.style.animationDelay = "";
+  }
+  for(const ch in keyEls) keyEls[ch].className = "key";
+  boardEl.classList.remove("shake","won","locked");
+}
+
+function newGame(mode){
+  state.mode = mode;
+  clearBoardUI();
+  hintBtn.disabled = false;
+  hintBtn.innerHTML = HINT_HTML; // restaura o rótulo da dica para nova partida
+  state.row = 0; state.status = "playing"; state.busy = false;
+  state.grid = Array.from({length:ROWS},()=>Array(COLS).fill(""));
+  state.results = [];
+  state.hintedRow = -1; state.hintsUsed = 0; state.kbState = {};
+
+  if(mode === "daily"){
+    const saved = Store.get("daily."+dateKey(), null);
+    state.answer = saved ? saved.answer : wordOfDay();
+    if(saved){
+      restoreDaily(saved);
+    }else{
+      updateSubtitle();
+    }
+  }else{
+    let w = state.lastFree;
+    while(w === state.lastFree && WORDS.length > 1) w = WORDS[Math.floor(Math.random()*WORDS.length)];
+    state.lastFree = w;
+    state.answer = w;
+    updateSubtitle();
+  }
+  syncModeTabs();
+}
+
+function updateSubtitle(){
+  if(state.mode === "daily"){
+    subtitleEl.innerHTML = "<b>Desafio diário</b> · " + prettyDate() + " · 1 palavra por dia para todos";
+  }else{
+    subtitleEl.innerHTML = "<b>Modo livre</b> · palavra aleatória, jogue quantas vezes quiser";
+  }
+}
+
+/* restaura o progresso do dia (mock de localStorage) */
+function restoreDaily(saved){
+  state.row = saved.row;
+  state.status = saved.status;
+  state.hintedRow = saved.hintedRow;
+  state.hintsUsed = saved.hintsUsed;
+  state.results = saved.results || [];
+  hardToggle.checked = !!saved.hard;
+  PREFS.hard = !!saved.hard;
+  for(let r=0;r<saved.row;r++){
+    const g = saved.grid[r] || [];
+    for(let c=0;c<COLS;c++){
+      const ch = g[c] || "";
+      tiles[r][c].textContent = ch;
+      if(ch) tiles[r][c].classList.add("typed");
+    }
+    const res = saved.results[r];
+    if(res){
+      for(let c=0;c<COLS;c++){
+        if(res[c]){ tiles[r][c].classList.remove("typed"); tiles[r][c].classList.add(res[c]); }
+      }
+      applyKeyboard(g, res);
+    }else if(r === state.hintedRow){
+      // linha da dica: só a letra revelada
+      for(let c=0;c<COLS;c++){
+        if(g[c]){ tiles[r][c].classList.add("correct"); tiles[r][c].classList.remove("typed"); }
+        else tiles[r][c].classList.add("hint-empty");
+      }
+    }
+  }
+  if(state.hintsUsed > 0){ hintBtn.disabled = true; hintBtn.innerHTML = "Dica usada"; }
+  updateSubtitle();
+  if(state.status !== "playing"){
+    boardEl.classList.add("locked");
+    setTimeout(()=>showEnd(false), 450);
+  }
+}
+
+function saveDaily(){
+  if(state.mode !== "daily") return;
+  Store.set("daily."+dateKey(), {
+    answer: state.answer, row: state.row, status: state.status,
+    grid: state.grid.map(r=>r.slice()),
+    results: state.results.map(r=>r.slice()),
+    hintedRow: state.hintedRow, hintsUsed: state.hintsUsed,
+    hard: hardToggle.checked
+  });
+}
+
+function syncModeTabs(){
+  $("tabDaily").setAttribute("aria-selected", String(state.mode === "daily"));
+  $("tabFree").setAttribute("aria-selected", String(state.mode === "free"));
+}
+
+/* ---------- 10. Digitação (virtual + físico) ---------- */
+function typeLetter(ch){
+  if(state.busy || state.status !== "playing") return;
+  if(state.row >= ROWS) return;
+  const c = state.grid[state.row].findIndex(x => x === "");
+  if(c === -1) return;
+  state.grid[state.row][c] = ch;
+  const t = tiles[state.row][c];
+  t.textContent = ch;
+  t.classList.add("typed");
+  if(!reduceMotion){
+    t.classList.remove("pop"); void t.offsetWidth; t.classList.add("pop");
+  }
+  Sfx.key();
+}
+function backspace(){
+  if(state.busy || state.status !== "playing") return;
+  const c = state.grid[state.row].findIndex(x => x === "");
+  const idx = (c === -1 ? COLS : c) - 1;
+  if(idx < 0) return;
+  state.grid[state.row][idx] = "";
+  const t = tiles[state.row][idx];
+  t.textContent = ""; t.classList.remove("typed");
+  Sfx.key();
+}
+
+/* valida estrutura da tentativa antes de pontuar */
+function currentGuess(){
+  return state.grid[state.row].filter(x=>x!=="").join("");
+}
+function shakeRow(){
+  boardEl.classList.remove("shake"); void boardEl.offsetWidth; boardEl.classList.add("shake");
+  Sfx.error();
+}
+
+/* modo difícil: exige respeitar verdes e amarelas anteriores */
+function violatesHardMode(guess){
+  for(let r=0;r<state.results.length;r++){
+    const res = state.results[r];
+    if(!res) continue;
+    const prev = state.grid[r].join("");
+    for(let i=0;i<COLS;i++){
+      if(res[i] === "correct" && guess[i] !== prev[i])
+        return "Modo difícil: use " + prev[i] + " na posição " + (i+1) + ".";
+      if(res[i] === "present" && !guess.includes(prev[i]))
+        return "Modo difícil: a letra " + prev[i] + " precisa ser usada.";
+    }
+  }
+  return null;
+}
+
+/* ---------- 11. Confirmação da tentativa ---------- */
+async function submitGuess(){
+  if(state.busy || state.status !== "playing") return;
+  const guess = currentGuess();
+  if(guess.length < COLS){ shakeRow(); toast("Faltam letras ❓","warn"); return; }
+  if(!WORDS.includes(guess)){ shakeRow(); toast("Palavra não encontrada 🔎","warn"); return; }
+  if(hardToggle.checked){
+    const viol = violatesHardMode(guess);
+    if(viol){ shakeRow(); toast(viol,"warn",2600); return; }
+  }
+
+  state.busy = true;
+  boardEl.classList.add("locked");
+  const res = evaluate(guess, state.answer);
+  state.results[state.row] = res;
+  state.grid[state.row] = guess.split("");
+
+  // flip 3D escalonado — a cor troca no ponto médio da rotação
+  const r = state.row;
+  for(let c=0;c<COLS;c++){
+    setTimeout(()=>{
+      const t = tiles[r][c];
+      t.classList.remove("flip"); void t.offsetWidth; t.classList.add("flip");
+      Sfx.flip();
+      setTimeout(()=>{ t.classList.remove("typed"); t.classList.add(res[c]); Sfx.reveal(res[c]); }, 250);
+      setTimeout(()=>{ t.classList.remove("flip"); }, 520);
+    }, c * 320);
+  }
+  await wait(COLS * 320 + 120);
+  applyKeyboard(guess.split(""), res);
+  state.row++;
+  state.busy = false;
+  boardEl.classList.remove("locked");
+
+  // fim de jogo?
+  if(guess === state.answer){
+    state.status = "won";
+    boardEl.classList.add("won");
+    const winRow = tiles[state.row - 1];
+    winRow.forEach((t,i)=> setTimeout(()=>{ t.classList.add("bounce"); }, i * 90));
+    if(!reduceMotion) sparkleBurst();
+    Sfx.win();
+    finishGame();
+  }else if(state.row >= ROWS){
+    state.status = "lost";
+    Sfx.lose();
+    finishGame();
+  }else{
+    saveDaily();
+  }
+}
+
+/* aplica estados ao teclado virtual com prioridade verde > amarelo > cinza */
+function applyKeyboard(guessLetters, res){
+  const prio = { absent:1, present:2, correct:3 };
+  guessLetters.forEach((ch,i)=>{
+    const el = keyEls[ch]; if(!el) return;
+    const cur = state.kbState[ch] || null;
+    if(!cur || prio[res[i]] > prio[cur]){
+      state.kbState[ch] = res[i];
+      el.className = "key " + res[i];
+    }
+  });
+}
+
+/* ---------- 12. Dica (custa 1 tentativa) ---------- */
+function useHint(){
+  if(state.busy || state.status !== "playing") return;
+  if(state.hintsUsed > 0){ toast("Apenas uma dica por partida 🕯","hint"); return; }
+  if(state.row >= ROWS) return;
+  if(state.row === ROWS - 1) toast("Atenção: a dica usará sua última tentativa!","warn",2600);
+
+  // escolhe uma posição ainda não revelada como verde
+  const candidates = [];
+  for(let i=0;i<COLS;i++){
+    const already = state.results.some(res => res && res[i] === "correct");
+    if(!already) candidates.push(i);
+  }
+  if(!candidates.length) return;
+  const pos = candidates[Math.floor(Math.random()*candidates.length)];
+  const ch = state.answer[pos];
+
+  const r = state.row;
+  state.grid[r] = Array.from({length:COLS},(_,i)=> i === pos ? ch : "");
+  state.hintedRow = r;
+  state.hintsUsed++;
+  hintBtn.disabled = true;
+  hintBtn.innerHTML = "Dica usada";
+
+  for(let c=0;c<COLS;c++){
+    const t = tiles[r][c];
+    if(c === pos){ t.textContent = ch; t.classList.add("correct"); }
+    else t.classList.add("hint-empty");
+  }
+  if(!state.kbState[ch] || state.kbState[ch] !== "correct"){
+    state.kbState[ch] = "correct";
+    if(keyEls[ch]) keyEls[ch].className = "key correct";
+  }
+  Sfx.hint();
+  toast("Pista de expedição: " + ch + " na posição " + (pos+1) + " · −1 tentativa","hint",2400);
+
+  state.row++;
+  if(state.row >= ROWS){
+    // a dica consumiu a última tentativa → derrota
+    state.status = "lost";
+    Sfx.lose();
+    finishGame();
+  }else{
+    saveDaily(); // dica no meio do jogo: a partida continua
+  }
+}
+
+/* ---------- 13. Estatísticas ---------- */
+function registerResult(){
+  const s = getStats(state.mode);
+  s.played++;
+  if(state.status === "won"){
+    s.wins++;
+    const used = state.row; // linhas consumidas (inclui dica, se houve)
+    s.dist[Math.min(used,6) - 1]++;
+    s.streak++;
+    s.maxStreak = Math.max(s.maxStreak, s.streak);
+  }else{
+    s.streak = 0;
+  }
+  setStats(state.mode, s);
+  return s;
+}
+let lastStats = null;
+function finishGame(){
+  lastStats = registerResult();
+  saveDaily();
+  setTimeout(()=>showEnd(true), state.status === "won" ? 900 : 400);
+}
+function pct(s){ return s.played ? Math.round(100 * s.wins / s.played) : 0; }
+
+function fillStats(s){
+  $("stPlayed").textContent = s.played;
+  $("stWins").textContent   = s.wins;
+  $("stPct").textContent    = pct(s) + "%";
+  $("stStreak").textContent = s.streak;
+  $("stMax").textContent    = s.maxStreak;
+  $("statsMode").textContent = state.mode === "daily" ? "Desafio diário" : "Modo livre";
+
+  const dist = $("dist"); dist.innerHTML = "";
+  const max = Math.max(1, ...s.dist);
+  const bestRow = s.dist.indexOf(Math.max(...s.dist));
+  s.dist.forEach((v,i)=>{
+    const row = document.createElement("div");
+    row.className = "rowbar" + (v > 0 && i === bestRow ? " best" : "");
+    row.innerHTML = '<span class="idx">' + (i+1) + '</span>' +
+                    '<span class="bar" style="width:' + Math.max(9, Math.round(v / max * 100)) + '%">' + v + '</span>';
+    dist.appendChild(row);
+  });
+}
+
+/* ---------- 14. Fim de jogo ---------- */
+function showEnd(animate){
+  const won = state.status === "won";
+  $("endTitle").textContent   = won ? "Palavra encontrada!" : "Fim da expedição";
+  $("endSub").textContent     = state.mode === "daily" ? "Desafio diário · " + prettyDate() : "Modo livre";
+
+  const rw = $("revealWord"); rw.innerHTML = "";
+  state.answer.split("").forEach((ch,i)=>{
+    const s = document.createElement("span");
+    s.textContent = ch;
+    s.style.animationDelay = (animate ? i * 90 : 0) + "ms";
+    rw.appendChild(s);
+  });
+
+  const usedHint = state.hintsUsed > 0 ? " (com dica)" : "";
+  $("resultLine").innerHTML = won
+    ? "Descoberta em <b>" + state.row + "</b> tentativa" + (state.row > 1 ? "s" : "") + usedHint + " 🏆"
+    : "A palavra era <b>" + state.answer + "</b>. Volte amanhã para uma nova caçada!";
+
+  const s = lastStats || getStats(state.mode);
+  $("endPlayed").textContent  = s.played;
+  $("endWins").textContent    = pct(s) + "%";
+  $("endStreak").textContent  = s.streak;
+
+  $("endPrimary").textContent = state.mode === "free" ? "Nova partida" : "Jogar modo livre";
+  $("endPrimary").onclick = ()=>{
+    closeOverlay("endOverlay");
+    if(state.mode === "daily") switchMode("free"); else newGame("free");
+  };
+  $("endSecondary").textContent = "Ver estatísticas";
+  $("endSecondary").onclick = ()=>{
+    closeOverlay("endOverlay");
+    fillStats(getStats(state.mode));
+    openOverlay("statsOverlay");
+  };
+  openOverlay("endOverlay");
+}
+
+/* faíscas de comemoração */
+function sparkleBurst(){
+  const host = $("sparkles");
+  const colors = ["var(--brand)","var(--correct)","var(--present)","#ffffff"];
+  for(let i=0;i<26;i++){
+    const sp = document.createElement("span");
+    sp.className = "sparkle";
+    sp.style.left = (Math.random() * 100) + "%";
+    sp.style.background = colors[i % colors.length];
+    sp.style.animationDuration = (1.1 + Math.random() * 1.4) + "s";
+    sp.style.animationDelay = (Math.random() * .5) + "s";
+    sp.style.transform = "rotate(" + (Math.random()*360) + "deg)";
+    host.appendChild(sp);
+    setTimeout(()=>sp.remove(), 3200);
+  }
+}
+
+/* ---------- 15. Overlays ---------- */
+function openOverlay(id){ const o = $(id); o.classList.add("open"); o.setAttribute("aria-hidden","false"); }
+function closeOverlay(id){ const o = $(id); o.classList.remove("open"); o.setAttribute("aria-hidden","true"); }
+
+/* ---------- 16. Troca de modo ---------- */
+function switchMode(mode){
+  if(state.mode === mode && state.status === "playing" && state.row === 0) return;
+  newGame(mode);
+  toast(mode === "daily" ? "📅 Desafio diário" : "🎯 Modo livre");
+}
+
+/* ---------- 17. Eventos ---------- */
+kbEl.addEventListener("click", e=>{
+  const b = e.target.closest(".key"); if(!b) return;
+  const k = b.dataset.k;
+  if(k === "ENTER") submitGuess();
+  else if(k === "⌫") backspace();
+  else typeLetter(k);
+});
+
+document.addEventListener("keydown", e=>{
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+  if(e.key === "Escape"){ closeOverlay("statsOverlay"); closeOverlay("endOverlay"); return; }
+  const overlayOpen = document.querySelector(".overlay.open");
+  if(overlayOpen) return;
+  if(e.key === "Enter"){ e.preventDefault(); submitGuess(); return; }
+  if(e.key === "Backspace"){ e.preventDefault(); backspace(); return; }
+  const ch = normalize(e.key);
+  if(ch && ch.length === 1 && LETTERS.includes(ch)){ typeLetter(ch); }
+});
+
+function normalize(k){
+  return k.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+}
+
+$("tabDaily").addEventListener("click", ()=>switchMode("daily"));
+$("tabFree").addEventListener("click", ()=>switchMode("free"));
+hintBtn.addEventListener("click", useHint);
+$("statsBtn").addEventListener("click", ()=>{ fillStats(getStats(state.mode)); openOverlay("statsOverlay"); });
+document.querySelectorAll("[data-close]").forEach(b=> b.addEventListener("click", ()=>closeOverlay(b.dataset.close)));
+document.querySelectorAll(".overlay").forEach(o=> o.addEventListener("click", e=>{ if(e.target === o) closeOverlay(o.id); }));
+
+/* tema (escuro = primário "Expedição Noturna"; claro = "Caderno de Campo") */
+const themeBtn = $("themeBtn");
+function applyTheme(){
+  document.documentElement.dataset.theme = PREFS.theme;
+  themeBtn.dataset.off = String(PREFS.theme === "light"); // lua visível no escuro, sol no claro
+}
+themeBtn.addEventListener("click", ()=>{
+  PREFS.theme = PREFS.theme === "dark" ? "light" : "dark";
+  Store.set("prefs", PREFS);
+  applyTheme();
+  Sfx.key();
+});
+
+/* mute */
+const muteBtn = $("muteBtn");
+function applyMute(){ muteBtn.dataset.off = String(PREFS.muted); muteBtn.setAttribute("aria-pressed", String(PREFS.muted)); }
+muteBtn.addEventListener("click", ()=>{
+  PREFS.muted = !PREFS.muted;
+  Store.set("prefs", PREFS);
+  applyMute();
+  if(!PREFS.muted) Sfx.key();
+});
+
+/* modo difícil */
+hardToggle.addEventListener("change", ()=>{
+  PREFS.hard = hardToggle.checked;
+  Store.set("prefs", PREFS);
+  toast(hardToggle.checked ? "🔥 Modo difícil ativado" : "Modo difícil desativado");
+  saveDaily();
+});
+
+/* ---------- 18. Bootstrap ---------- */
+buildBoard();
+buildKeyboard();
+applyTheme();
+applyMute();
+hardToggle.checked = !!PREFS.hard;
+newGame("daily");
+</script>
+</body>
+</html>
